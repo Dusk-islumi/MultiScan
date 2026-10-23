@@ -32,7 +32,7 @@ OCR/
 │       │   ├── data/                     # Room / DataStore+Keystore / Retrofit / 同步引擎
 │       │   ├── scan/                     # CameraX / zxing-cpp / 跟踪 / 坐标映射 / 去重
 │       │   └── ui/                       # Home / Scan / Records / Settings / Debug + 导出诊断
-│       ├── main/res/                     # 132 条中文字符串、主题、自适应图标、FileProvider 路径
+│       ├── main/res/                     # 126 条中文字符串、主题、自适应图标、FileProvider 路径
 │       └── test/java/...                 # JVM 单元测试（坐标映射/跟踪/去重/同步/Code128C）
 ├── tools/
 │   ├── dev-server/server.py    # DEV ONLY：复刻 docs/API.md 的本地联调服务（含 /admin、CSV）
