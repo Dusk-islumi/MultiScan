@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
 
 /** 首页统计：DAO 聚合查询 + SettingsStore 快照组合。 */
 data class HomeStats(
@@ -53,6 +54,24 @@ data class SessionRecord(
     val itemCount: Int,
     val items: List<ScanItemRecord>,
 )
+
+/**
+ * 「立即同步」按钮结果（v3 契约 §13.1）。同步是**单向上传**：只把本地待同步批次发到服务器，
+ * 不下载 / 不覆盖 / 不删除任何本地数据。
+ */
+sealed interface ManualSyncResult {
+    /** 已入队开始同步；[pendingCount] = 当前 pending 批次数。 */
+    data class Started(val pendingCount: Int) : ManualSyncResult
+
+    /** 没有待同步批次（未入队）。 */
+    data object UpToDate : ManualSyncResult
+
+    /** 未注册（无 token / 无 deviceId），需先去设置页注册本机。 */
+    data object NeedsRegistration : ManualSyncResult
+
+    /** 意外失败（中文提示，可直接展示）。 */
+    data class Error(val message: String) : ManualSyncResult
+}
 
 /**
  * 本地数据仓库：实现 scan 模块的 [ScanSessionStore] 边界，并向 UI 暴露首页统计 / 记录流。
@@ -175,7 +194,13 @@ class ScanRepository(
                 }
             }
             diagLog.log(TAG, "finish session id=$sessionId items=$itemCount")
-            if (itemCount > 0) syncScheduler.enqueueNow()
+            if (itemCount > 0) {
+                // v3 契约 §13.1：仅当「自动同步」开启时才调度；手动同步不受此限制。
+                val snapshot = settings.current()
+                if (snapshot.autoSync) {
+                    syncScheduler.enqueueNow(wifiOnly = snapshot.syncWifiOnly)
+                }
+            }
         }
     }
 
@@ -214,7 +239,13 @@ class ScanRepository(
             }
 
             diagLog.log(TAG, "sweep open=${openSessions.size} outbox=$outboxCreated emptyDeleted=$deletedEmpty")
-            if (outboxCreated > 0) syncScheduler.enqueueNow()
+            if (outboxCreated > 0) {
+                // v3 契约 §13.1：启动收尾同样受「自动同步」开关约束。
+                val snapshot = settings.current()
+                if (snapshot.autoSync) {
+                    syncScheduler.enqueueNow(wifiOnly = snapshot.syncWifiOnly)
+                }
+            }
         }
     }
 
@@ -229,7 +260,8 @@ class ScanRepository(
             val row = outboxDao.findById(id) ?: outboxDao.findBySessionId(id) ?: return@withContext
             outboxDao.resetForRetry(row.id)
             diagLog.log(TAG, "retry outbox id=${row.id}")
-            syncScheduler.enqueueNow()
+            // 用户显式操作：不受 autoSync 限制，但按当前网络偏好设置约束。
+            syncScheduler.enqueueNow(wifiOnly = settings.current().syncWifiOnly)
         }
     }
 
@@ -239,8 +271,41 @@ class ScanRepository(
             val count = outboxDao.resetAllFailed()
             if (count > 0) {
                 diagLog.log(TAG, "retry all failed count=$count")
-                syncScheduler.enqueueNow()
+                syncScheduler.enqueueNow(wifiOnly = settings.current().syncWifiOnly)
             }
+        }
+    }
+
+    /**
+     * 「立即同步」按钮（v3 契约 §13.1）：手动触发一次同步，**不受 autoSync 开关限制**。
+     *
+     * 流程：未注册 → [ManualSyncResult.NeedsRegistration]；清 pending 的退避时间
+     * （[OutboxDao.resetPendingSchedule]，让退避中的批次立即到期）；无 pending →
+     * [ManualSyncResult.UpToDate]（不入队）；有 pending → 按当前「仅 Wi-Fi」偏好入队 →
+     * [ManualSyncResult.Started]。
+     *
+     * 不重置 failed / auth_error（记录页已有「重试」入口）。
+     */
+    suspend fun requestManualSync(): ManualSyncResult = withContext(Dispatchers.IO) {
+        try {
+            val snapshot = settings.current()
+            if (!snapshot.hasToken || snapshot.deviceId.isNullOrBlank()) {
+                return@withContext ManualSyncResult.NeedsRegistration
+            }
+            outboxDao.resetPendingSchedule()
+            val pendingCount = outboxDao.countPending()
+            if (pendingCount <= 0) {
+                diagLog.log(TAG, "manual sync: nothing pending")
+                return@withContext ManualSyncResult.UpToDate
+            }
+            syncScheduler.enqueueNow(wifiOnly = snapshot.syncWifiOnly)
+            diagLog.log(TAG, "manual sync started pending=$pendingCount wifiOnly=${snapshot.syncWifiOnly}")
+            ManualSyncResult.Started(pendingCount)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            diagLog.log(TAG, "manual sync failed: ${e::class.java.simpleName}")
+            ManualSyncResult.Error("同步失败")
         }
     }
 

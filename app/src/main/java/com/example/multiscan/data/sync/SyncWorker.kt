@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
 import com.example.multiscan.MultiScanApplication
+import com.example.multiscan.data.prefs.SettingsSnapshot
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -21,9 +22,25 @@ class SyncWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
     override suspend fun doWork(): Result {
         val container = (applicationContext as MultiScanApplication).container
         return try {
+            // v3（契约 §13.1）：同步开始即把 last_sync_status 置为 syncing；
+            // SyncEngine 结束时仍会写 success / failed / auth_error 作为最终状态。
+            val previous = container.settingsStore.current()
+            container.settingsStore.setSyncRunning()
             val summary = container.syncEngine.runOnce()
+            // 本轮无事可做时（如仅因切换 Wi-Fi 约束触发的空跑）引擎不会写最终状态；
+            // 这里恢复到同步前状态，避免 UI 永远停在「同步中」而禁用同步按钮。
+            if (container.settingsStore.current().lastSyncStatus == SettingsSnapshot.SYNC_RUNNING) {
+                val restoreStatus = when {
+                    previous.lastSyncStatus == SettingsSnapshot.SYNC_RUNNING ->
+                        if (previous.lastSyncAt == null) SettingsSnapshot.SYNC_NEVER else SettingsSnapshot.SYNC_SUCCESS
+                    else -> previous.lastSyncStatus
+                }
+                container.settingsStore.setLastSync(previous.lastSyncAt, restoreStatus)
+            }
             summary.nextWakeDelayMillis?.let { delayMillis ->
-                container.syncScheduler.enqueueWithDelay(delayMillis)
+                // 延迟重试按「当前」仅 Wi-Fi 偏好设置网络约束（用户可能在等待期间切换）。
+                val wifiOnly = container.settingsStore.current().syncWifiOnly
+                container.syncScheduler.enqueueWithDelay(delayMillis, wifiOnly)
             }
             if (summary.processed > 0) {
                 container.diagLog.log(

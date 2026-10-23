@@ -3,6 +3,7 @@ package com.example.multiscan.ui.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,13 +24,19 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -39,6 +46,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.multiscan.AppContainer
 import com.example.multiscan.R
 import com.example.multiscan.core.time.Utc
+import com.example.multiscan.ui.common.StatusBadge
+import com.example.multiscan.ui.common.StatusLabel
 import com.example.multiscan.ui.common.homeSyncStatusLabel
 import com.example.multiscan.ui.common.screenViewModel
 import com.example.multiscan.ui.theme.StatusDanger
@@ -46,8 +55,8 @@ import com.example.multiscan.ui.theme.StatusSuccess
 import com.example.multiscan.ui.theme.StatusWarning
 
 /**
- * 首页：顶部连接状态卡 + 4 个统计卡 + 起始扫描大按钮 + 记录/设置入口。
- * 所有数字来自 `ScanRepository.homeStats`，没有占位数据。
+ * 首页：顶部连接/同步状态卡（含「立即同步」）+ 4 个统计卡 + 起始扫描大按钮 + 记录/设置入口。
+ * 所有数字来自 `ScanRepository.homeStats`，同步状态来自 `SettingsStore.snapshot`，没有占位数据。
  */
 @Composable
 fun HomeScreen(
@@ -56,88 +65,116 @@ fun HomeScreen(
     onRecords: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    val viewModel: HomeViewModel = screenViewModel { HomeViewModel(container) }
+    val context = LocalContext.current
+    val viewModel: HomeViewModel = screenViewModel {
+        HomeViewModel(context.applicationContext, container)
+    }
     val stats by viewModel.stats.collectAsStateWithLifecycle()
     val serverUrl by viewModel.serverUrl.collectAsStateWithLifecycle()
+    val syncing by viewModel.syncing.collectAsStateWithLifecycle()
+    val manualSyncInFlight by viewModel.manualSyncInFlight.collectAsStateWithLifecycle()
+    val syncMessage by viewModel.syncMessage.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Column(
+    LaunchedEffect(syncMessage) {
+        val message = syncMessage
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            viewModel.consumeSyncMessage()
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .background(MaterialTheme.colorScheme.background),
     ) {
-        Text(
-            text = stringResource(R.string.home_title),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = stringResource(R.string.home_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(20.dp))
-
-        val currentStats = stats
-        if (currentStats == null) {
-            LoadingCard()
-        } else {
-            ConnectionCard(
-                serverUrl = serverUrl,
-                lastSyncAt = currentStats.lastSyncAt,
-                lastSyncStatus = currentStats.lastSyncStatus,
-            )
-            Spacer(Modifier.height(16.dp))
-            StatsGrid(
-                today = currentStats.todayScanned,
-                total = currentStats.totalRecords,
-                pending = currentStats.pendingSync,
-                failed = currentStats.failed,
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-        Button(
-            onClick = onScan,
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp),
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
             Text(
-                text = stringResource(R.string.home_start_scan),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                text = stringResource(R.string.home_title),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
             )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.home_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(20.dp))
+
+            val currentStats = stats
+            if (currentStats == null) {
+                LoadingCard()
+            } else {
+                ConnectionCard(
+                    serverUrl = serverUrl,
+                    lastSyncAt = currentStats.lastSyncAt,
+                    lastSyncStatus = currentStats.lastSyncStatus,
+                    pendingSync = currentStats.pendingSync,
+                    syncing = manualSyncInFlight || syncing,
+                    onSyncNow = { viewModel.manualSync() },
+                )
+                Spacer(Modifier.height(16.dp))
+                StatsGrid(
+                    today = currentStats.todayScanned,
+                    total = currentStats.totalRecords,
+                    pending = currentStats.pendingSync,
+                    failed = currentStats.failed,
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = onScan,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.home_start_scan),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.home_scan_hint),
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(24.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                EntryCard(
+                    title = stringResource(R.string.home_records),
+                    description = stringResource(R.string.home_records_desc),
+                    onClick = onRecords,
+                    modifier = Modifier.weight(1f),
+                )
+                EntryCard(
+                    title = stringResource(R.string.home_settings),
+                    description = stringResource(R.string.home_settings_desc),
+                    onClick = onSettings,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.home_scan_hint),
-            modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
-        Spacer(Modifier.height(24.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            EntryCard(
-                title = stringResource(R.string.home_records),
-                description = stringResource(R.string.home_records_desc),
-                onClick = onRecords,
-                modifier = Modifier.weight(1f),
-            )
-            EntryCard(
-                title = stringResource(R.string.home_settings),
-                description = stringResource(R.string.home_settings_desc),
-                onClick = onSettings,
-                modifier = Modifier.weight(1f),
-            )
-        }
     }
 }
 
@@ -146,6 +183,9 @@ private fun ConnectionCard(
     serverUrl: String,
     lastSyncAt: String?,
     lastSyncStatus: String,
+    pendingSync: Int,
+    syncing: Boolean,
+    onSyncNow: () -> Unit,
 ) {
     val status = homeSyncStatusLabel(
         lastSyncStatus = lastSyncStatus,
@@ -172,6 +212,15 @@ private fun ConnectionCard(
                     fontWeight = FontWeight.SemiBold,
                     color = status.color,
                 )
+                Spacer(Modifier.weight(1f))
+                if (pendingSync > 0) {
+                    StatusBadge(
+                        label = StatusLabel(
+                            text = stringResource(R.string.sync_pending_count, pendingSync),
+                            color = StatusWarning,
+                        ),
+                    )
+                }
             }
             Spacer(Modifier.height(14.dp))
             InfoRow(
@@ -183,6 +232,24 @@ private fun ConnectionCard(
                 label = stringResource(R.string.home_last_sync_label),
                 value = Utc.formatDisplay(lastSyncAt),
             )
+            Spacer(Modifier.height(14.dp))
+            // 同步中（worker 运行中或请求在途）禁用按钮，避免重复入队。
+            OutlinedButton(
+                onClick = onSyncNow,
+                enabled = !syncing,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (syncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.sync_in_progress))
+                } else {
+                    Text(text = stringResource(R.string.sync_now))
+                }
+            }
         }
     }
 }

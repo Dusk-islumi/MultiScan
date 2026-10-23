@@ -3,7 +3,7 @@ package com.example.multiscan.data.prefs
 /**
  * 设置项只读快照（DataStore 投影）。
  *
- * [lastSyncStatus] 取值见本类常量：`never | success | failed | auth_error`。
+ * [lastSyncStatus] 取值见本类常量：`never | syncing | success | failed | auth_error`。
  * token 明文不出现在本类中，只暴露 [hasToken] 与打码后的 [maskedToken]。
  */
 data class SettingsSnapshot(
@@ -15,11 +15,18 @@ data class SettingsSnapshot(
     val overlayVisible: Boolean = true,
     val lastSyncAt: String? = null,
     val lastSyncStatus: String = SYNC_NEVER,
+    /** v3 同步设置：扫描完成后自动上传（默认开）。 */
+    val autoSync: Boolean = true,
+    /** v3 同步设置：仅在 Wi-Fi / 不计费网络下同步（默认关）。 */
+    val syncWifiOnly: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_SERVER_URL = "http://10.0.2.2:8000"
 
         const val SYNC_NEVER = "never"
+
+        /** v3：同步进行中（SyncWorker 开始时写入，引擎结束时被 success/failed/auth_error 覆盖）。 */
+        const val SYNC_RUNNING = "syncing"
         const val SYNC_SUCCESS = "success"
         const val SYNC_FAILED = "failed"
         const val SYNC_AUTH_ERROR = "auth_error"

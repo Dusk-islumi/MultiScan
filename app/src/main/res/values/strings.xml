@@ -37,6 +37,17 @@
     <string name="home_settings_desc">服务器、注册与调试</string>
     <string name="home_loading">正在加载统计数据…</string>
 
+    <!-- 同步（v3，Home / Settings 共用） -->
+    <string name="sync_now">立即同步</string>
+    <string name="sync_in_progress">同步中…</string>
+    <string name="sync_status_running">同步中</string>
+    <string name="sync_pending_count">待同步 %1$d 条</string>
+    <string name="sync_pending_value">%1$d 条</string>
+    <string name="sync_result_started">已开始同步 %1$d 条</string>
+    <string name="sync_result_up_to_date">没有待同步记录</string>
+    <string name="sync_result_need_register">请先在设置页注册本机</string>
+    <string name="sync_action_failed">同步失败：%1$s</string>
+
     <!-- 扫描页 -->
     <string name="scan_torch">手电筒</string>
     <string name="scan_torch_on">手电筒：开</string>
@@ -114,6 +125,17 @@
     <string name="settings_not_registered">未注册</string>
     <string name="settings_debug_entry">调试面板</string>
     <string name="settings_debug_desc">实时统计与诊断导出</string>
+
+    <!-- 同步设置（v3） -->
+    <string name="settings_section_sync">同步设置</string>
+    <string name="settings_sync_one_way">同步为单向：仅将本地扫描记录上传到服务器；不会从服务器下载、覆盖或删除本地数据。</string>
+    <string name="settings_auto_sync">自动同步</string>
+    <string name="settings_auto_sync_desc">扫描完成后自动上传</string>
+    <string name="settings_wifi_only">仅 Wi-Fi 同步</string>
+    <string name="settings_wifi_only_desc">移动网络下不自动上传</string>
+    <string name="settings_sync_pending">待同步</string>
+    <string name="settings_sync_last">最近同步</string>
+    <string name="settings_sync_status">同步状态</string>
 
     <!-- 调试面板 -->
     <string name="debug_title">调试面板</string>

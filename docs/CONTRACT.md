@@ -470,6 +470,62 @@ class SyncWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
   7. UI 额外增加进程级只读 `ScanDebugBus`（调试统计镜像，无 Context 泄漏）。
 - 最终 CI 命令：`cd app && ./gradlew assembleDebug testDebugUnitTest lintDebug`（本地 Windows 需先加载 JDK/SDK：build-env 的 `C:\android-toolchain\env.ps1`；CI 用 setup-java + setup-android）。
 
+## 13. 同步按钮 + 同步设置（v3，2026-10-23；data-sync + ui 必须实现）
+
+> 用户反馈「同步不明不白」，要求：① 明确的「立即同步」按钮；② 同步设置；③ 明确同步是**单向上传（手机→服务器）**：
+> 只上传本地扫描记录，**不下载、不覆盖、不删除**本地数据。服务端契约（docs/API.md）不变。
+
+### 13.1 data-sync（`data/**` + data 单测）
+
+1. **同步偏好**：`SettingsSnapshot` 增加 `autoSync: Boolean = true`、`syncWifiOnly: Boolean = false`；
+   `SettingsAccess` 增加 `suspend fun setAutoSync(enabled: Boolean)`、`suspend fun setSyncWifiOnly(enabled: Boolean)`；
+   `SettingsStore` 增加 DataStore key `auto_sync`（默认 true）/`sync_wifi_only`（默认 false）。切换仅 Wi-Fi 不清数据、不重注册。
+2. **SyncTrigger / SyncScheduler** 接口扩展（旧调用点全部适配）：
+   - `fun enqueueNow(wifiOnly: Boolean = false)`
+   - `fun enqueueWithDelay(delayMillis: Long, wifiOnly: Boolean = false)`
+   - `fun reapplyConstraints(wifiOnly: Boolean)`：取消同名唯一任务并按新约束重新入队（用于切换「仅 Wi-Fi」后立即生效；文档注明运行中任务会被取消）
+   - 约束：`wifiOnly=true → NetworkType.UNMETERED`，否则 `NetworkType.CONNECTED`；唯一任务名 `sync-scans` 不变。
+3. **自动同步开关语义**：`finishSession` / `sweepOpenSessions` / `AppContainer.initialize` 仅在
+   `settings.current().autoSync == true` 时调度同步；手动同步不受 autoSync 限制。`SyncWorker` 延迟重试也按当前 `syncWifiOnly` 约束调度。
+4. **手动同步 API**（放 `ScanRepository`，UI 直接调用）：
+   ```kotlin
+   sealed interface ManualSyncResult {
+       data class Started(val pendingCount: Int) : ManualSyncResult
+       data object UpToDate : ManualSyncResult
+       data object NeedsRegistration : ManualSyncResult
+       data class Error(val message: String) : ManualSyncResult
+   }
+   suspend fun requestManualSync(): ManualSyncResult
+   ```
+   实现：读 settings；无 token 或 deviceId 为空 → `NeedsRegistration`；`OutboxDao.resetPendingSchedule()`
+   （`UPDATE outbox SET next_retry_at = NULL WHERE state = 'pending'`，让退避中的 pending 立即到期）；
+   统计 pending 数；0 → `UpToDate`（不入队）；>0 → `syncScheduler.enqueueNow(wifiOnly = snapshot.syncWifiOnly)` → `Started(n)`。
+   **不**自动重置 failed/auth_error（记录页已有「重试」）。异常 → `Error(中文消息)`。
+5. **同步状态**：`SettingsSnapshot` 增加 `SYNC_RUNNING = "syncing"` 常量；`SettingsAccess` 增加 `suspend fun setSyncRunning()`
+   （只把 status 置为 syncing）；`SyncWorker.doWork()` 开始时调用，SyncEngine 结束时仍写 success/failed/auth_error。
+6. **单测（继续纯 JVM + fakes）**：`requestManualSync` 四种结果；`autoSync=false` 时 finishSession 不调度；
+   `syncWifiOnly` 正确传给 trigger；现有 69 项测试保持全绿。更新 Fakes 以适配 SettingsAccess/SyncTrigger 新方法。
+
+### 13.2 ui（`ui/**` + `MainActivity.kt` + `res/**`）
+
+1. **Home 顶部连接/同步状态卡升级**：服务器地址、最近同步时间、状态文案（从未同步 / 同步中 / 同步成功 / 同步失败 / 登录失效）；
+   有待同步批次时显示「待同步 N 条」；新增**「立即同步」按钮**（同步中禁用/显示"同步中…"），点击调用
+   `container.scanRepository.requestManualSync()`（viewModelScope + 中文 Snackbar）：
+   - Started(n) → 「已开始同步 n 条」
+   - UpToDate → 「没有待同步记录」
+   - NeedsRegistration → 「请先在设置页注册本机」
+   - Error → 错误文案
+2. **Settings 新增「同步设置」卡片**（服务器配置之后）：
+   - 单向说明文案：「同步为单向：仅将本地扫描记录上传到服务器；不会从服务器下载、覆盖或删除本地数据。」
+   - `Switch` 自动同步（扫描完成自动上传）→ `settingsStore.setAutoSync`
+   - `Switch` 仅 Wi-Fi 同步 → `settingsStore.setSyncWifiOnly` + `container.syncScheduler.reapplyConstraints(wifiOnly)`
+   - 状态行：待同步 N 条 / 最近同步时间 / 状态文案
+   - 「立即同步」按钮（与 Home 同一套逻辑与结果提示）
+3. 全部新增文案放 `res/values/strings.xml`；不新增依赖；lint 0 errors；不影响现有扫描/记录/调试功能。
+4. 单向语义只做 UI 明示，不实现任何从服务器拉取/合并到本地的逻辑。
+
+
+
 ## 12. 实机识别率优化增补（2026-10-23，v2；scanner + ui 必须实现）
 
 > 背景：用户在真机上扫屏幕 Code128 时识别率低。真实照片离线实验（`.coord/notes/recognition-analysis.md`）

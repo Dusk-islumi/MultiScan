@@ -86,15 +86,22 @@ class AppContainer(private val appContext: Context) {
     /**
      * App 启动收尾：
      *  1. 崩溃恢复：上次被杀时残留的 open 会话 → finished 并入队 outbox；
-     *  2. 触发一次同步调度（已有唯一任务则 KEEP 不重复入队）。
+     *  2. 若「自动同步」开关开启，触发一次同步调度（唯一任务 KEEP；「仅 Wi-Fi」偏好作为约束传入）；
+     *     关闭自动同步时不自动入队，用户可在首页/设置页点「立即同步」。
      */
     fun initialize() {
         diagLog.log(TAG, "AppContainer init")
         appScope.launch {
             runCatching { scanRepository.sweepOpenSessions() }
                 .onFailure { diagLog.log(TAG, "sweep failed: ${it::class.java.simpleName}") }
-            runCatching { syncScheduler.enqueueNow() }
-                .onFailure { diagLog.log(TAG, "enqueue sync failed: ${it::class.java.simpleName}") }
+            runCatching {
+                val settings = settingsStore.current()
+                if (settings.autoSync) {
+                    syncScheduler.enqueueNow(wifiOnly = settings.syncWifiOnly)
+                } else {
+                    diagLog.log(TAG, "auto sync disabled; skip startup enqueue")
+                }
+            }.onFailure { diagLog.log(TAG, "enqueue sync failed: ${it::class.java.simpleName}") }
             diagLog.log(TAG, "startup recovery finished")
         }
     }

@@ -28,6 +28,17 @@ interface OutboxDao {
     @Query("SELECT MIN(next_retry_at) FROM outbox WHERE state = 'pending' AND next_retry_at IS NOT NULL")
     suspend fun nextRetryAt(): String?
 
+    /**
+     * 「立即同步」按钮：清掉 pending 批次的退避时间，让退避中的批次当下立即到期。
+     * 只动 pending，不动 failed / auth_error（那两类走记录页「重试」，契约 §13.1）。
+     */
+    @Query("UPDATE outbox SET next_retry_at = NULL WHERE state = 'pending'")
+    suspend fun resetPendingSchedule(): Int
+
+    /** 当前 pending 批次数（判断「立即同步」是否有事可做）。 */
+    @Query("SELECT COUNT(*) FROM outbox WHERE state = 'pending'")
+    suspend fun countPending(): Int
+
     /** 进程崩溃残留的 uploading → pending（SyncEngine.runOnce 开头调用）。 */
     @Query("UPDATE outbox SET state = 'pending' WHERE state = 'uploading'")
     suspend fun resetStaleUploading(): Int

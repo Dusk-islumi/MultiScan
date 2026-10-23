@@ -155,6 +155,19 @@ class FakeOutboxDao : OutboxDao {
     override suspend fun nextRetryAt(): String? =
         rows.values.filter { it.state == "pending" }.mapNotNull { it.nextRetryAt }.minOrNull()
 
+    override suspend fun resetPendingSchedule(): Int {
+        var count = 0
+        for (entry in rows.entries.toList()) {
+            if (entry.value.state == "pending" && entry.value.nextRetryAt != null) {
+                rows[entry.key] = entry.value.copy(nextRetryAt = null)
+                count++
+            }
+        }
+        return count
+    }
+
+    override suspend fun countPending(): Int = rows.values.count { it.state == "pending" }
+
     override suspend fun resetStaleUploading(): Int {
         var count = 0
         for (entry in rows.entries.toList()) {
@@ -233,6 +246,12 @@ class FakeOutboxDao : OutboxDao {
     }
 }
 
+/** 模拟「立即同步」过程中 DAO 抛异常，用于 ManualSyncResult.Error 分支单测。 */
+class FailingOutboxDao(val fake: FakeOutboxDao = FakeOutboxDao()) : OutboxDao by fake {
+
+    override suspend fun resetPendingSchedule(): Int = throw IllegalStateException("simulated outbox failure")
+}
+
 /** 直通事务（单测没有真实 DB，事务边界不影响断言）。 */
 class PassthroughTransactionRunner : TransactionRunner {
     override suspend fun <T> run(block: suspend () -> T): T = block()
@@ -278,6 +297,18 @@ class FakeSettings(initial: SettingsSnapshot = SettingsSnapshot()) : SettingsAcc
     override suspend fun clearRegistration() {
         state.value = state.value.copy(deviceId = null, hasToken = false, maskedToken = null)
     }
+
+    override suspend fun setAutoSync(enabled: Boolean) {
+        state.value = state.value.copy(autoSync = enabled)
+    }
+
+    override suspend fun setSyncWifiOnly(enabled: Boolean) {
+        state.value = state.value.copy(syncWifiOnly = enabled)
+    }
+
+    override suspend fun setSyncRunning() {
+        state.value = state.value.copy(lastSyncStatus = SettingsSnapshot.SYNC_RUNNING)
+    }
 }
 
 class FakeSyncTrigger : SyncTrigger {
@@ -285,14 +316,26 @@ class FakeSyncTrigger : SyncTrigger {
     var enqueueNowCount: Int = 0
         private set
 
-    val delayedMillis: MutableList<Long> = mutableListOf()
+    /** 每次 enqueueNow 传入的 wifiOnly 标志（按调用顺序）。 */
+    val enqueueNowWifiOnly: MutableList<Boolean> = mutableListOf()
 
-    override fun enqueueNow() {
+    /** 每次 enqueueWithDelay 的 (delayMillis, wifiOnly)。 */
+    val delayedRequests: MutableList<Pair<Long, Boolean>> = mutableListOf()
+
+    /** 每次 reapplyConstraints 传入的 wifiOnly。 */
+    val reapplyConstraintsCalls: MutableList<Boolean> = mutableListOf()
+
+    override fun enqueueNow(wifiOnly: Boolean) {
         enqueueNowCount++
+        enqueueNowWifiOnly += wifiOnly
     }
 
-    override fun enqueueWithDelay(delayMillis: Long) {
-        delayedMillis += delayMillis
+    override fun enqueueWithDelay(delayMillis: Long, wifiOnly: Boolean) {
+        delayedRequests += delayMillis to wifiOnly
+    }
+
+    override fun reapplyConstraints(wifiOnly: Boolean) {
+        reapplyConstraintsCalls += wifiOnly
     }
 }
 

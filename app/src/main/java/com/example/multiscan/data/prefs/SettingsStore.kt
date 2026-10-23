@@ -107,6 +107,26 @@ class SettingsStore(context: Context, diagLog: DiagLog? = null) : SettingsAccess
         }
     }
 
+    override suspend fun setAutoSync(enabled: Boolean) {
+        withContext(Dispatchers.IO) {
+            appContext.settingsDataStore.edit { prefs -> prefs[Keys.AUTO_SYNC] = enabled }
+        }
+    }
+
+    override suspend fun setSyncWifiOnly(enabled: Boolean) {
+        withContext(Dispatchers.IO) {
+            appContext.settingsDataStore.edit { prefs -> prefs[Keys.SYNC_WIFI_ONLY] = enabled }
+        }
+    }
+
+    override suspend fun setSyncRunning() {
+        withContext(Dispatchers.IO) {
+            appContext.settingsDataStore.edit { prefs ->
+                prefs[Keys.LAST_SYNC_STATUS] = SettingsSnapshot.SYNC_RUNNING
+            }
+        }
+    }
+
     private fun Preferences.toSnapshot(): SettingsSnapshot {
         val plainToken = tokenCipher.decrypt(this[Keys.TOKEN_CIPHER])
         return SettingsSnapshot(
@@ -118,6 +138,8 @@ class SettingsStore(context: Context, diagLog: DiagLog? = null) : SettingsAccess
             overlayVisible = this[Keys.OVERLAY_VISIBLE] ?: true,
             lastSyncAt = this[Keys.LAST_SYNC_AT],
             lastSyncStatus = this[Keys.LAST_SYNC_STATUS] ?: SettingsSnapshot.SYNC_NEVER,
+            autoSync = this[Keys.AUTO_SYNC] ?: true,
+            syncWifiOnly = this[Keys.SYNC_WIFI_ONLY] ?: false,
         )
     }
 
@@ -131,5 +153,7 @@ class SettingsStore(context: Context, diagLog: DiagLog? = null) : SettingsAccess
         val OVERLAY_VISIBLE = booleanPreferencesKey("overlay_visible")
         val LAST_SYNC_AT = stringPreferencesKey("last_sync_at")
         val LAST_SYNC_STATUS = stringPreferencesKey("last_sync_status")
+        val AUTO_SYNC = booleanPreferencesKey("auto_sync")
+        val SYNC_WIFI_ONLY = booleanPreferencesKey("sync_wifi_only")
     }
 }
