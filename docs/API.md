@@ -32,6 +32,8 @@ Content-Type: application/json
 }
 ```
 
+> 注：以上 `device_id` / `token` 为契约示例值（已脱敏），真实 token 只在注册响应中出现一次。
+
 - `token` 只在这一次返回，App 必须存进 DataStore（加密）
 - 注册口令错误返回 `403`
 

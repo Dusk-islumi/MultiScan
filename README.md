@@ -10,15 +10,24 @@
 - 相机 / 识别：CameraX 1.6.2（camera-core/camera2/lifecycle/view） + `io.github.zxing-cpp:android:3.1.1`（本地识别，无 ML Kit / 扫描 SDK）
 - 存储 / 同步：Room 2.8.5（KSP 2.3.12）+ DataStore 1.3.0 + Android Keystore（token 加密）+ WorkManager 2.12.0 + Retrofit 3.0.0 / OkHttp 5.4.0 / kotlinx.serialization 1.12.0
 - 最低 / 目标：minSdk 26 · targetSdk 36 · compileSdk 36 · JDK 17
+- 许可证：[MIT](LICENSE)（第三方依赖声明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)）
+- CI：`assembleDebug + lintDebug + testDebugUnitTest`（[.github/workflows/android.yml](.github/workflows/android.yml)）
+
+> 这是一个**完整的参考实现/脚手架**，不是即插即用的 SDK：Code 128 码制、服务端契约、包名与中文文案是按当前需求固定的。
+> 复用到其他项目时的改动点与工作量见 [docs/REUSING.md](docs/REUSING.md)。
 
 ## 目录结构
 
 ```
 OCR/
+├── LICENSE                     # MIT
+├── THIRD-PARTY-NOTICES.md      # 第三方依赖许可
 ├── docs/
 │   ├── API.md                  # 服务端接口契约（只读，禁止修改）
 │   ├── ANDROID_APP_PROMPT.md   # 原始需求
-│   └── CONTRACT.md             # 内部实现契约（模块边界/数据模型/同步语义）
+│   ├── CONTRACT.md             # 内部实现契约（模块边界/数据模型/同步语义）
+│   ├── REUSING.md              # 复用/改包名/换码制/抽模块指南
+│   └── WINDOWS_NOTES.md        # Windows 中文路径构建问题与修复
 ├── app/                        # 独立 Gradle 工程（root project = application）
 │   ├── build.gradle.kts / settings.gradle.kts / gradle.properties
 │   ├── gradle/libs.versions.toml
@@ -61,10 +70,9 @@ cd app
 .\gradlew.bat testDebugUnitTest lintDebug
 ```
 
-> **Windows 中文路径说明**：本仓库路径含中文（`桌面`）时，JDK 17 在 Windows 上会用系统 ANSI 编码（GBK）
-> 解析 Gradle 测试 worker 的 classpath `@argfile`，UTF-8 写法会导致所有单元测试 `ClassNotFoundException`。
-> `app/gradle.properties` 已固定 `org.gradle.jvmargs=-Xmx4g -Dfile.encoding=GBK` 并配套
-> `javaPreCompile…`/`Test` 的 UTF-8 设置、`android.overridePathCheck=true`；请勿随意改为 UTF-8。
+> **Windows 中文/非 ASCII 路径**：默认配置（UTF-8）在 Linux CI 与纯 ASCII 路径的 Windows 上可直接构建。
+> 如果本机工作区路径含中文（如 `桌面`），JDK 17 的 `@argfile` 编码与 AGP 路径检查需要两项**本机级**覆盖，
+> 具体做法见 [docs/WINDOWS_NOTES.md](docs/WINDOWS_NOTES.md)（不要改仓库默认配置）。
 > 放到纯 ASCII 路径下构建则无此限制（Linux CI 也不受影响）。
 
 安装到手机 / 模拟器：
@@ -105,7 +113,7 @@ python tools/verify/check_server.py --base http://127.0.0.1:8000 --code 01234567
 
 ## 已验证结果（本机复现，2026-10-23）
 
-构建门禁（build-env 执行，日志在 `C:\android-toolchain\logs\`，不属于仓库）：
+构建门禁（本机执行，完整日志不入库）：
 
 | 门禁 | 结果 |
 |---|---|
@@ -207,7 +215,8 @@ v2 改动（`docs/CONTRACT.md` §12）：
 1. **真实相机验收需要真机**：模拟器（如 MuMu / AVD）的相机是合成画面，无法用来判断识别率、FPS、发热与手电筒实际效果；App 在模拟器上可安装、启动、走设置/注册/同步流程，但扫描识别效果请在真机验证。
 2. **本仓库未包含 `server/`**：按需求「服务端已完成、不要修改接口」，仓库仅带 `docs/API.md` 契约；`tools/dev-server/` 为本地联调用的契约复刻（含 `/admin` 与 CSV），非生产实现。
 3. **compileSdk 36 的版本钉死**：Compose 1.12+ / core-ktx 1.19+ / lifecycle 2.11+ / OkHttp 5.5+ 的 AAR 要求 compileSdk 37，故按 `app/gradle/libs.versions.toml` 钉在兼容版本；升级 compileSdk 后可放开。
-4. **非 ASCII 路径**：Windows 下仓库路径含中文时 AGP 需要 `android.overridePathCheck=true`（已写入 `app/gradle.properties`）。
+4. **非 ASCII 路径**：Windows 下路径含中文时需本机级覆盖（`android.overridePathCheck=true` +
+   `-Dfile.encoding=GBK`），说明见 [docs/WINDOWS_NOTES.md](docs/WINDOWS_NOTES.md)；纯 ASCII 路径与 Linux CI 无需配置。
 5. 未实现点击对焦与双指变焦（需求标注为可选）；相机默认连续对焦。
 6. 服务端返回 401 时 App 停止自动重试并提示重新注册（避免无限重试），需到设置页重新注册。
 7. **本轮验收尾声模拟器（MuMu）ADB 通道掉线**：设备在线期间已完成安装/启动/相机/手电筒/调试统计/诊断导出/设置连通性/设备注册等人工验证；掉线后无法再安装最终 APK 或执行在线同步联合验证（代码与单测均已绿）。重启模拟器/换真机后按上文「使用流程」即可继续验证同步与识别。

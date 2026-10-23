@@ -468,7 +468,7 @@ class SyncWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
   5. 413 拆批的派生 batch_id 规则：整批首段用 sessionId，拆分段用 `UUID.nameUUIDFromBytes("$sessionId|$from|$to")`（单测锁定）；
   6. API 明文 HTTP 需 `android:usesCleartextTraffic="true"`（局域网 `http://<host>:8000` 契约要求）；
   7. UI 额外增加进程级只读 `ScanDebugBus`（调试统计镜像，无 Context 泄漏）。
-- 最终 CI 命令：`cd app && ./gradlew assembleDebug testDebugUnitTest lintDebug`（本地 Windows 需先加载 JDK/SDK：build-env 的 `C:\android-toolchain\env.ps1`；CI 用 setup-java + setup-android）。
+- 最终 CI 命令：`cd app && ./gradlew assembleDebug testDebugUnitTest lintDebug`（本地 Windows 需先安装 JDK 17 与 Android SDK 36；CI 用 setup-java + setup-android）。
 
 ## 13. 同步按钮 + 同步设置（v3，2026-10-23；data-sync + ui 必须实现）
 

@@ -1,0 +1,29 @@
+# Keep the repository consistent across Windows / macOS / Linux.
+# Checkout with LF everywhere except Windows scripts, which need CRLF.
+* text=auto
+
+*.kt    text
+*.kts   text
+*.java  text
+*.xml   text
+*.md    text
+*.py    text
+*.yml   text
+*.yaml  text
+*.toml  text
+
+# Gradle wrapper script must stay LF *and* executable (git index mode 100755),
+# otherwise GitHub Actions `./gradlew` fails with "Permission denied".
+gradlew   text eol=lf
+*.sh      text eol=lf
+*.bat     text eol=crlf
+
+# Binary artifacts
+*.jar     binary
+*.apk     binary
+*.aab     binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.webp    binary
+*.so      binary
