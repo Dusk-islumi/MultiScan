@@ -14,6 +14,13 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - name: Make gradlew executable
+        working-directory: app
+        run: chmod +x gradlew
       - name: Build
         working-directory: app
         run: ./gradlew assembleDebug lintDebug testDebugUnitTest
