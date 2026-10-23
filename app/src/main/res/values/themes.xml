@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      平台主题只负责窗口层：无 ActionBar（不引入 appcompat），透明系统栏配合 edge-to-edge，
+      windowBackground 与 Compose 背景色保持一致以减少启动闪烁。实际配色由 Compose Material3 负责。
+    -->
+    <style name="Theme.MultiScan" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@color/status_bar_color</item>
+        <item name="android:navigationBarColor">@color/status_bar_color</item>
+    </style>
+</resources>

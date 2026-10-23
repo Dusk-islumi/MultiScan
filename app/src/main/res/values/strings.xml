@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 应用名（AndroidManifest 引用） -->
+    <string name="app_name">多码扫描</string>
+
+    <!-- 通用 -->
+    <string name="common_back">返回</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_unknown">未知错误</string>
+    <string name="common_retry">重试</string>
+    <string name="common_expand">展开明细</string>
+    <string name="common_collapse">收起明细</string>
+    <string name="common_copy">复制</string>
+    <string name="common_show">显示</string>
+    <string name="common_hide">隐藏</string>
+    <string name="common_copied">已复制</string>
+
+    <!-- 首页 -->
+    <string name="home_title">多码扫描</string>
+    <string name="home_subtitle">实时条码识别 · 自动去重 · 联网同步</string>
+    <string name="home_server_label">服务器地址</string>
+    <string name="home_last_sync_label">最近同步</string>
+    <string name="home_status_not_connected">未连接</string>
+    <string name="home_status_never">从未同步</string>
+    <string name="home_status_success">同步成功</string>
+    <string name="home_status_failed">同步失败</string>
+    <string name="home_status_auth_error">登录失效</string>
+    <string name="home_stat_today">今日已扫</string>
+    <string name="home_stat_total">本地总数</string>
+    <string name="home_stat_pending">待同步</string>
+    <string name="home_stat_failed">失败</string>
+    <string name="home_start_scan">开始扫描</string>
+    <string name="home_scan_hint">对准条码，连续两帧确认后自动入库去重</string>
+    <string name="home_records">记录</string>
+    <string name="home_records_desc">查看扫描批次与同步状态</string>
+    <string name="home_settings">设置</string>
+    <string name="home_settings_desc">服务器、注册与调试</string>
+    <string name="home_loading">正在加载统计数据…</string>
+
+    <!-- 扫描页 -->
+    <string name="scan_torch">手电筒</string>
+    <string name="scan_torch_on">手电筒：开</string>
+    <string name="scan_torch_off">手电筒：关</string>
+    <string name="scan_finish">完成</string>
+    <string name="scan_finishing">正在结束…</string>
+    <string name="scan_session_total">本次已扫 %1$d</string>
+    <string name="scan_session_new">新扫 %1$d</string>
+    <string name="scan_error_prefix">扫描异常：%1$s</string>
+    <string name="scan_blocked_title">需要相机权限</string>
+    <string name="scan_blocked_message">扫描条码需要访问相机。请授予相机权限后开始扫描。</string>
+    <string name="scan_blocked_permanent">相机权限已被拒绝，请到系统设置中手动开启。</string>
+    <string name="scan_grant">去授权</string>
+    <string name="scan_open_settings">去设置</string>
+    <string name="scan_exit_title">结束本次扫描？</string>
+    <string name="scan_exit_message">结束后将保存本次扫描结果并自动上传同步。</string>
+    <string name="scan_exit_confirm">结束扫描</string>
+    <string name="scan_exit_cancel">继续扫描</string>
+    <string name="scan_finished_message">本次扫描完成：共 %1$d 个，新扫 %2$d 个</string>
+    <string name="scan_finished_empty">本次扫描结束：未扫到条码</string>
+    <string name="scan_finish_failed">结束扫描失败：%1$s</string>
+    <string name="scan_start_failed">创建扫描会话失败：%1$s</string>
+    <string name="scan_camera_failed">相机启动失败：%1$s</string>
+
+    <!-- 记录页 -->
+    <string name="records_title">记录</string>
+    <string name="records_clear_synced">清空已同步</string>
+    <string name="records_empty_title">暂无扫描记录</string>
+    <string name="records_empty_hint">完成扫描并同步后会显示在这里</string>
+    <string name="records_clear_confirm_title">清空已同步记录？</string>
+    <string name="records_clear_confirm_message">将删除所有已同步批次及其条码记录，未同步的数据不受影响。</string>
+    <string name="records_clear_action">清空</string>
+    <string name="records_items_count">共 %1$d 条</string>
+    <string name="records_retry_done">已重新加入同步队列</string>
+    <string name="records_cleared">已清空同步记录</string>
+    <string name="records_action_failed">操作失败：%1$s</string>
+    <string name="records_state_synced">已同步</string>
+    <string name="records_state_syncing">同步中</string>
+    <string name="records_state_pending">待同步</string>
+    <string name="records_state_failed">失败</string>
+    <string name="records_state_auth_error">登录失效</string>
+    <string name="records_state_open">扫描中</string>
+    <string name="records_started_at">开始于 %1$s</string>
+    <string name="records_no_items">本批次没有条码</string>
+
+    <!-- 设置页 -->
+    <string name="settings_title">设置</string>
+    <string name="settings_section_server">服务器配置</string>
+    <string name="settings_server_url">服务器地址</string>
+    <string name="settings_enroll_secret">注册口令</string>
+    <string name="settings_save">保存</string>
+    <string name="settings_saving">保存中…</string>
+    <string name="settings_test_health">测试连通性</string>
+    <string name="settings_testing">测试中…</string>
+    <string name="settings_register">注册本机</string>
+    <string name="settings_registering">注册中…</string>
+    <string name="settings_health_ok">连接成功 · 服务端版本 %1$s · 服务器时间 %2$s</string>
+    <string name="settings_health_error">连接失败：%1$s</string>
+    <string name="settings_register_ok">设备 ID：%1$s\n令牌：%2$s</string>
+    <string name="settings_register_error">注册失败：%1$s</string>
+    <string name="settings_register_need_secret">请先填写注册口令</string>
+    <string name="settings_saved">已保存</string>
+    <string name="settings_save_failed">保存失败：%1$s</string>
+    <string name="settings_invalid_url">服务器地址格式不正确，应以 http:// 或 https:// 开头</string>
+    <string name="settings_device_info">设备信息</string>
+    <string name="settings_device_model">型号</string>
+    <string name="settings_device_manufacturer">厂商</string>
+    <string name="settings_device_os">系统</string>
+    <string name="settings_device_app_version">应用版本</string>
+    <string name="settings_device_id">设备 ID</string>
+    <string name="settings_device_token">令牌（已打码）</string>
+    <string name="settings_not_registered">未注册</string>
+    <string name="settings_debug_entry">调试面板</string>
+    <string name="settings_debug_desc">实时统计与诊断导出</string>
+
+    <!-- 调试面板 -->
+    <string name="debug_title">调试面板</string>
+    <string name="debug_section_camera">相机</string>
+    <string name="debug_section_session">会话统计</string>
+    <string name="debug_section_overlay">识别框显示</string>
+    <string name="debug_section_export">诊断导出</string>
+    <string name="debug_fps">FPS</string>
+    <string name="debug_decode_last">最近单帧解码耗时</string>
+    <string name="debug_decode_avg">平均单帧解码耗时</string>
+    <string name="debug_tracks">当前 track 数</string>
+    <string name="debug_dropped">丢帧数</string>
+    <string name="debug_analyzed">已分析帧</string>
+    <string name="debug_resolution">相机分辨率</string>
+    <string name="debug_overlay_visible">显示锚点</string>
+    <string name="debug_overlay_hint">关闭后扫描页不再绘制识别框</string>
+    <string name="debug_export">导出诊断</string>
+    <string name="debug_exporting">正在导出…</string>
+    <string name="debug_export_desc">打包 logs.txt / device.json / params.json 并分享</string>
+    <string name="debug_export_done">诊断包已生成</string>
+    <string name="debug_export_failed">导出失败：%1$s</string>
+    <string name="debug_share_failed">分享失败：%1$s</string>
+    <string name="debug_no_session">尚未开始扫描（暂无会话数据）</string>
+    <string name="debug_value_fps">%1$.1f</string>
+    <string name="debug_value_ms">%1$d ms</string>
+    <string name="debug_value_int">%1$d</string>
+    <string name="debug_value_resolution">%1$d × %2$d（旋转 %3$d°）</string>
+    <string name="debug_camera_unknown">未知</string>
+</resources>

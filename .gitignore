@@ -1,0 +1,35 @@
+# Android / Gradle build outputs
+.gradle/
+build/
+*/build/
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+captures/
+
+# Signing material (never commit)
+*.keystore
+*.jks
+keystore.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.DS_Store
+.externalNativeBuild/
+.cxx/
+
+# Team coordination + research scratch (not part of the deliverable)
+.coord/
+
+# Local tooling binaries that live in the workspace root (not part of the repo)
+/platform-tools/
+/*.exe
+/*.dll
+# adb/platform-tools distribution metadata that sits next to the .exe files
+/NOTICE.txt
+/package.xml
+/source.properties
+/mke2fs.conf

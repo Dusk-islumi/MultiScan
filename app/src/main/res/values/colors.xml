@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 自适应图标背景（深绿，与 Compose 主色系一致） -->
+    <color name="ic_launcher_background">#0B3D2E</color>
+    <!-- 启动窗口背景：浅色主题；深色模式见 values-night/colors.xml -->
+    <color name="window_background">#F8FAFC</color>
+    <color name="status_bar_color">#00000000</color>
+</resources>
