@@ -110,12 +110,12 @@ python tools/verify/check_server.py --base http://127.0.0.1:8000 --code 01234567
 | 门禁 | 结果 |
 |---|---|
 | `cd app && ./gradlew assembleDebug` | ✅ 零错误；`app/build/outputs/apk/debug/app-debug.apk`（约 25.4 MB） |
-| `./gradlew testDebugUnitTest` | ✅ **69/69 通过**（9 个测试类） |
+| `./gradlew testDebugUnitTest` | ✅ **81/81 通过**（11 个测试类） |
 | `./gradlew lintDebug` | ✅ 0 errors / 16 warnings（均为版本固定、锁定竖屏等良性提示） |
 | `clean assembleDebug testDebugUnitTest lintDebug` | ✅ BUILD SUCCESSFUL (1m05s, v2) |
 | APK 内容 | ✅ `lib/{arm64-v8a,armeabi-v7a,x86,x86_64}/libzxingcpp_android.so` 全部打包；manifest `usesCleartextTraffic=true` |
 
-单元测试分布（v2）：坐标映射 11 + RotationMath 8 + TrackManager 11 + SessionCodeIndex 5 + Code128C 5 + Room/仓库去重 10 + 同步状态矩阵 10 + 退避 3 + 批次 payload 6 = 69。
+单元测试分布（v3）：坐标映射 11 + RotationMath 8 + TrackManager 11 + SessionCodeIndex 5 + Code128C 5 + Room/仓库去重 10 + 同步状态矩阵 10 + 退避 3 + 批次 payload 6 + 手动同步 6 + 同步调度 6 = 81。
 
 模拟器（MuMu，Android 15 / x86_64 / 1440×2560）上的人工端到端验证（在设备 ADB 掉线前完成）：
 
@@ -125,6 +125,20 @@ python tools/verify/check_server.py --base http://127.0.0.1:8000 --code 01234567
 - 调试面板读到真实数据：分析分辨率 `1280×720 (旋转 90°)`、FPS≈15、单帧解码 3–4 ms、丢帧/已分析帧计数正常；「导出诊断」生成的 zip 含 `logs.txt` + `device.json` + `params.json`（FileProvider 分享路径可用，模拟器无分享目标属环境限制）；
 - 记录页空状态正常；设置页「测试连通性」对 `tools/dev-server` 返回 `连接成功 · 服务端版本 1.0.0 · 服务器时间 …`；「注册本机」成功，服务端可见新设备，App 内 device_id / 打码 token 正确显示，token 仅以加密密文落盘；
 - 同步上传链路的客户端实现由 `SyncEngineStatusMatrixTest`（200/201、401 不重试、413 拆分、422、5xx 退避）与 dev server 契约脚本双重覆盖；**最后一次真机/模拟器在线联合上传验证因模拟器 ADB 通道掉线未完成**（应用与服务器两侧实现均已独立验证，见「已知限制」）。
+
+## 同步（单向上传，2026-10-23 v3 增强）
+
+**同步方向：单向 —— 只把本地扫描记录上传到服务器；不会从服务器下载、覆盖或删除本地数据。**
+服务端按 `batch_id` 幂等合并条码并累计 `scan_count`（见 [docs/API.md](docs/API.md)）。
+
+- **首页**：顶部状态卡显示服务器地址、最近同步时间、同步状态（从未同步 / 同步中 / 同步成功 / 同步失败 / 登录失效）、待同步条数，并提供**「立即同步」**按钮；结果用 Snackbar 提示（已开始同步 N 条 / 没有待同步记录 / 请先注册本机 / 错误信息）。
+- **设置 → 同步设置**：
+  - 单向说明文案（同上）；
+  - **自动同步**开关（默认开）：扫描完成后自动上传；关闭后只在手动点「立即同步」时上传；
+  - **仅 Wi-Fi 同步**开关（默认关）：开启后 WorkManager 约束改为 `NetworkType.UNMETERED`，移动网络下等待 Wi-Fi；
+  - 待同步条数 / 最近同步时间 / 状态行 + 「立即同步」按钮。
+- **立即同步**会清掉 pending 批次的退避时间（`next_retry_at=NULL`），让退避中的批次立刻尝试上传；**不会**自动重试已标记 failed / auth_error 的批次（记录页有「重试」）；未注册（无 device_id/token）时提示先到设置页注册。
+- 技术实现：唯一 WorkManager 任务 `sync-scans`（`ExistingWorkPolicy.KEEP`）、`NetworkType.CONNECTED`/`UNMETERED`、退避 30s→2min→10min→30min、每批 ≤500、401 不重试、413 拆批、422 标记失败；同步中状态写 `last_sync_status=syncing`，完成后写 success/failed/auth_error。
 
 ## 实机识别率优化（v2，2026-10-23）
 
