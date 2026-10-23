@@ -110,12 +110,12 @@ python tools/verify/check_server.py --base http://127.0.0.1:8000 --code 01234567
 | 门禁 | 结果 |
 |---|---|
 | `cd app && ./gradlew assembleDebug` | ✅ 零错误；`app/build/outputs/apk/debug/app-debug.apk`（约 25.4 MB） |
-| `./gradlew testDebugUnitTest` | ✅ **66/66 通过**（9 个测试类） |
+| `./gradlew testDebugUnitTest` | ✅ **69/69 通过**（9 个测试类） |
 | `./gradlew lintDebug` | ✅ 0 errors / 16 warnings（均为版本固定、锁定竖屏等良性提示） |
-| `clean assembleDebug testDebugUnitTest lintDebug` | ✅ BUILD SUCCESSFUL (1m13s) |
+| `clean assembleDebug testDebugUnitTest lintDebug` | ✅ BUILD SUCCESSFUL (1m05s, v2) |
 | APK 内容 | ✅ `lib/{arm64-v8a,armeabi-v7a,x86,x86_64}/libzxingcpp_android.so` 全部打包；manifest `usesCleartextTraffic=true` |
 
-单元测试分布：坐标映射 11 + RotationMath 8 + TrackManager 8 + SessionCodeIndex 5 + Code128C 5 + Room/仓库去重 10 + 同步状态矩阵 10 + 退避 3 + 批次 payload 6 = 66。
+单元测试分布（v2）：坐标映射 11 + RotationMath 8 + TrackManager 11 + SessionCodeIndex 5 + Code128C 5 + Room/仓库去重 10 + 同步状态矩阵 10 + 退避 3 + 批次 payload 6 = 69。
 
 模拟器（MuMu，Android 15 / x86_64 / 1440×2560）上的人工端到端验证（在设备 ADB 掉线前完成）：
 
@@ -125,6 +125,30 @@ python tools/verify/check_server.py --base http://127.0.0.1:8000 --code 01234567
 - 调试面板读到真实数据：分析分辨率 `1280×720 (旋转 90°)`、FPS≈15、单帧解码 3–4 ms、丢帧/已分析帧计数正常；「导出诊断」生成的 zip 含 `logs.txt` + `device.json` + `params.json`（FileProvider 分享路径可用，模拟器无分享目标属环境限制）；
 - 记录页空状态正常；设置页「测试连通性」对 `tools/dev-server` 返回 `连接成功 · 服务端版本 1.0.0 · 服务器时间 …`；「注册本机」成功，服务端可见新设备，App 内 device_id / 打码 token 正确显示，token 仅以加密密文落盘；
 - 同步上传链路的客户端实现由 `SyncEngineStatusMatrixTest`（200/201、401 不重试、413 拆分、422、5xx 退避）与 dev server 契约脚本双重覆盖；**最后一次真机/模拟器在线联合上传验证因模拟器 ADB 通道掉线未完成**（应用与服务器两侧实现均已独立验证，见「已知限制」）。
+
+## 实机识别率优化（v2，2026-10-23）
+
+用户在真机上扫笔记本屏幕上的 Code128（`89678946375895468436`）时反馈识别率低。用这两张真实照片做了离线
+解码实验（Python zxing-cpp，同 C++ 内核）：把整图缩小到当前 720p 分析流里条码的等效尺寸（约 260px 宽）后，
+在轻微模糊/抖动/噪声下解码成功率为 0/30；条码约 390px（1080p 等效）时 8/30，约 520px 时 17/30，约 700px 时 28/30。
+结合现有"连续 2 帧都解出同一文本才确认、漏一帧清零"的逻辑，间歇性单帧解码几乎无法确认 → 很少出框/入库。
+
+v2 改动（`docs/CONTRACT.md` §12）：
+
+1. **分析/预览分辨率 1280×720 → 1920×1080**（16:9，`FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER` 兜底）；
+2. **双 pass 解码**：pass1 保持规格参数（`minLineCount=3` 等）；仅当 pass1 无结果才用 pass2
+   （`minLineCount=2`、`tryDenoise=true`、`tryInvert=true`、`GLOBAL_HISTOGRAM`），提升模糊/反光弱码命中率；
+3. **确认逻辑容忍丢帧**：同一 track 在 500ms 内累计 **2 次同文本证据**即可确认，漏帧不再清零
+   （仅文本变化/过期清零）；
+4. **点击对焦 + 手势变焦**：单击画面 `startFocusAndMetering` 对焦；双击在 1x/2x 间切换；双指捏合连续缩放
+   （扫描页显示当前倍率与「点击对焦 · 双指缩放」提示）；
+5. **调试面板**新增：解码命中率、已解码帧、最近解码 pass、实际分析分辨率，便于真机复测定位。
+
+按离线单帧命中率估算（500ms≈7 次分析机会，2 次命中即确认）：原 720p 约 4% → 1080p+pass2 约 84%，
+再配合 2x 变焦约 97%+（详见 `.coord/notes/recognition-analysis.md`）。
+
+**真机复测建议**：安装新 APK 后对准屏幕条码，保持条码占画面约 1/3 宽度；必要时双击放大到 2x、单击画面对焦。
+若仍偏低，请到「设置 → 调试面板」截图/记录：分析分辨率、解码命中率、已解码帧、最近解码 pass，连同手机型号反馈。
 
 ## 测试
 

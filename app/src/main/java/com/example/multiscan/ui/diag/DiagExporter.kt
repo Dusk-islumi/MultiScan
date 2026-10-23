@@ -116,10 +116,12 @@ object DiagExporter {
                 put("analyzedWidth", geometry?.imageWidth ?: 0)
                 put("analyzedHeight", geometry?.imageHeight ?: 0)
                 put("rotationDegrees", geometry?.rotationDegrees ?: 0)
-                put("requestedAnalysisSize", "1280x720")
+                put("requestedAnalysisSize", "1920x1080")
+                put("resolutionFallbackRule", "CLOSEST_LOWER_THEN_HIGHER")
                 put("outputImageFormat", "YUV_420_888")
                 put("backpressureStrategy", "KEEP_ONLY_LATEST")
                 put("cameraResolutionLabel", stats.cameraResolution)
+                put("analysisResolutionLabel", stats.analysisResolution)
             },
         )
         root.put(
@@ -127,16 +129,40 @@ object DiagExporter {
             JSONObject().apply {
                 put("library", "io.github.zxing-cpp:android:3.1.1")
                 put("formats", JSONArray(listOf("Code128")))
-                put("note", "契约 §5.2 固定配置，由 ScanController 内部持有单例 reader")
+                put(
+                    "pass1",
+                    JSONObject().apply {
+                        put("minLineCount", 3)
+                        put("tryHarder", true)
+                        put("tryRotate", true)
+                        put("tryInvert", false)
+                        put("tryDownscale", false)
+                        put("binarizer", "LOCAL_AVERAGE")
+                    },
+                )
+                put(
+                    "pass2",
+                    JSONObject().apply {
+                        put("minLineCount", 2)
+                        put("tryHarder", true)
+                        put("tryRotate", true)
+                        put("tryInvert", true)
+                        put("tryDenoise", true)
+                        put("binarizer", "GLOBAL_HISTOGRAM")
+                    },
+                )
+                put("pass2Trigger", "仅当 pass1 无有效结果")
+                put("note", "契约 §12.2 固定配置；reader 实例只创建一次且运行期不改 options")
             },
         )
         root.put(
             "tracker",
             JSONObject().apply {
                 put("iouThreshold", 0.3)
-                put("confirmFrames", 2)
+                put("confirmDetections", 2)
+                put("missedFramesDoNotReset", true)
                 put("maxMissMs", 500)
-                put("note", "契约 §5.2 固定配置（连续 2 帧确认、500ms 未出现移除）")
+                put("note", "契约 §12.3 固定配置（累计 2 次同文本证据即确认、漏帧不清零、TTL 500ms）")
             },
         )
         root.put(
@@ -148,6 +174,10 @@ object DiagExporter {
                 put("activeTracks", stats.activeTracks)
                 put("droppedFrames", stats.droppedFrames)
                 put("analyzedFrames", stats.analyzedFrames)
+                put("decodedFrames", stats.decodedFrames)
+                put("decodeHitRate", stats.decodeHitRate.toDouble())
+                put("analysisResolution", stats.analysisResolution)
+                put("lastDecodePass", stats.lastDecodePass)
                 put("cameraResolution", stats.cameraResolution)
             },
         )

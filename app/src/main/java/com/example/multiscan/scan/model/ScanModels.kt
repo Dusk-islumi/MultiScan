@@ -51,6 +51,8 @@ data class ScanUiState(
     val newDetected: Int = 0,
     val torchOn: Boolean = false,
     val torchAvailable: Boolean = false,
+    /** 当前相机变焦倍率（1f = 1x；双指缩放/双击切换后更新）。 */
+    val zoomRatio: Float = 1f,
     /** 最近一帧的分析图几何信息。 */
     val geometry: FrameGeometry? = null,
     val cameraReady: Boolean = false,
@@ -67,6 +69,14 @@ data class ScanDebugStats(
     val droppedFrames: Long = 0,
     val analyzedFrames: Long = 0,
     val cameraResolution: String = "",
+    /** 至少解出 1 个 detections 的分析帧数（多 pass 合计）。 */
+    val decodedFrames: Long = 0,
+    /** 解码命中率 = decodedFrames / analyzedFrames（无分析帧时为 0）。 */
+    val decodeHitRate: Float = 0f,
+    /** 实际分析流分辨率（ImageProxy buffer 宽高，如 1920x1080；首帧后确定）。 */
+    val analysisResolution: String = "",
+    /** 最近一帧使用的解码 pass：0=无结果, 1=规格参数, 2=宽松回退。 */
+    val lastDecodePass: Int = 0,
 )
 
 /** `finishSession()` 返回的会话汇总。 */

@@ -128,6 +128,12 @@ class ScanController(
     @Volatile
     private var latestGeometry: FrameGeometry? = null
     private var cameraResolution = ""
+
+    /** v2 调试统计：解出 ≥1 个码的帧数 / 实际分析分辨率 / 最近一帧的解码 pass。 */
+    private var decodedFrames = 0L
+    private var analysisResolution = ""
+    private var lastDecodePass = BarcodeDecoder.PASS_NONE
+
     private var lastUiPublishMs = 0L
 
     private var cameraController: CameraController? = null
@@ -210,11 +216,11 @@ class ScanController(
         synchronized(frameLock) { /* barrier */ }
 
         acceptingFrames = true
-        lastAnalysisStartMs = 0L
         latestGeometry = null
+        resetFrameStats()
         trackManager = TrackManager(clock = { SystemClock.elapsedRealtime() })
 
-        _uiState.update { it.copy(cameraReady = false, error = null, torchOn = false) }
+        _uiState.update { it.copy(cameraReady = false, error = null, torchOn = false, zoomRatio = 1f) }
 
         val controller = CameraController(
             context = appContext,
@@ -229,6 +235,9 @@ class ScanController(
             },
             onTorchState = { on ->
                 _uiState.update { it.copy(torchOn = on) }
+            },
+            onZoomChanged = { ratio ->
+                _uiState.update { it.copy(zoomRatio = ratio) }
             },
             onError = { message ->
                 _uiState.update { it.copy(cameraReady = false, error = message) }
@@ -246,7 +255,9 @@ class ScanController(
         val controller = cameraController
         cameraController = null
         controller?.unbind()
-        _uiState.update { it.copy(cameraReady = false, torchOn = false, torchAvailable = false) }
+        _uiState.update {
+            it.copy(cameraReady = false, torchOn = false, torchAvailable = false, zoomRatio = 1f)
+        }
     }
 
     /** 手电筒开关；不可用时保持关闭并由 uiState.torchAvailable 反映。 */
@@ -260,6 +271,27 @@ class ScanController(
         // 先乐观更新，CameraControl 回调会校正失败场景。
         _uiState.update { it.copy(torchOn = enabled) }
         controller.setTorch(enabled)
+    }
+
+    /**
+     * 主线程调用：点击对焦。坐标是 **PreviewView 内的视图像素坐标**（相对 PreviewView 左上角），
+     * 由 UI 的 pointerInput 点击位置传入。
+     */
+    fun tapToFocus(viewX: Float, viewY: Float) {
+        if (released) return
+        cameraController?.tapToFocus(viewX, viewY)
+    }
+
+    /** 主线程调用：双指缩放（相对倍率，内部 clamp 到设备 min/max 变焦范围）。 */
+    fun zoomBy(factor: Float) {
+        if (released) return
+        cameraController?.zoomBy(factor)
+    }
+
+    /** 主线程调用：双击切换 1x ↔ min(2.0x, maxZoomRatio)。 */
+    fun toggleZoom() {
+        if (released) return
+        cameraController?.toggleZoom()
     }
 
     /**
@@ -380,8 +412,14 @@ class ScanController(
         decodeSumMs += result.decodeMs
         decodeCount += 1
         latestGeometry = result.geometry
+        lastDecodePass = result.passUsed
+        if (result.detections.isNotEmpty()) decodedFrames += 1
         if (cameraResolution.isEmpty()) {
             cameraResolution = "${result.bufferWidth}x${result.bufferHeight}"
+        }
+        if (analysisResolution.isEmpty()) {
+            // 首帧 buffer 尺寸即 CameraX 实际选中的分析分辨率（如 1920x1080）。
+            analysisResolution = "${result.bufferWidth}x${result.bufferHeight}"
         }
         updateFps(nowMs)
 
@@ -399,6 +437,23 @@ class ScanController(
             fpsWindowStartMs = nowMs
             fpsWindowFrames = 0
         }
+    }
+
+    /** 每次 bind 新相机时清零帧统计（调试面板显示本轮扫描的实时数据）。 */
+    private fun resetFrameStats() {
+        lastAnalysisStartMs = 0L
+        droppedFrames = 0L
+        analyzedFrames = 0L
+        decodedFrames = 0L
+        lastDecodeMs = 0L
+        decodeSumMs = 0L
+        decodeCount = 0L
+        fps = 0f
+        fpsWindowStartMs = 0L
+        fpsWindowFrames = 0
+        cameraResolution = ""
+        analysisResolution = ""
+        lastDecodePass = BarcodeDecoder.PASS_NONE
     }
 
     /** 确认 track → 锚点条目（四边形跟随最新一帧；保留已完成的分类颜色）。 */
@@ -537,6 +592,7 @@ class ScanController(
         }
 
         val avgDecodeMs = if (decodeCount > 0L) decodeSumMs / decodeCount else 0L
+        val hitRate = if (analyzedFrames > 0L) decodedFrames.toFloat() / analyzedFrames else 0f
         _debugStats.update {
             it.copy(
                 fps = fps,
@@ -546,6 +602,10 @@ class ScanController(
                 droppedFrames = droppedFrames,
                 analyzedFrames = analyzedFrames,
                 cameraResolution = cameraResolution,
+                decodedFrames = decodedFrames,
+                decodeHitRate = hitRate,
+                analysisResolution = analysisResolution,
+                lastDecodePass = lastDecodePass,
             )
         }
     }

@@ -14,6 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +76,7 @@ import com.example.multiscan.ui.theme.ScanNewAnchorGreen
  * 结构：
  *  - 相机权限未授予 → 中文说明页（去授权 / 去设置），不崩溃；
  *  - 已授予 → 全屏 [PreviewView]（FILL_CENTER）+ Compose Canvas 叠加识别框；
+ *  - 手势（契约 §12.4）：透明手势层单击对焦、双击 1x↔2x、双指捏合缩放；底部栏显示当前倍率；
  *  - 右上角手电筒/完成按钮；底部半透明「本次已扫 N / 新扫 M」；
  *  - 返回键弹「结束本次扫描？」确认；确认后 finishSession 并回首页（snackbar 由 AppRoot 显示）。
  *
@@ -222,6 +226,26 @@ fun ScanScreen(
                 }
             }
 
+            // 手势层（契约 §12.4）：透明 fillMaxSize Box 叠在 PreviewView/Canvas 之上、右上角按钮之下。
+            // 单击 → tapToFocus(视图坐标)；双击 → 1x↔2x；双指捏合 → zoomBy(相对增量)。
+            // 位于本 Box 之前的 PreviewView/Canvas 不参与命中测试，因此手势会先到这里；
+            // ScanControls / ScanBottomBar 在其后声明，仍处于更上层，按钮点击不受影响。
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { offset -> viewModel.tapToFocus(offset.x, offset.y) },
+                            onDoubleTap = { viewModel.toggleZoom() },
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        detectTransformGestures(panZoomLock = false) { _, _, zoom, _ ->
+                            if (zoom != 1f) viewModel.zoomBy(zoom)
+                        }
+                    },
+            )
+
             ScanControls(
                 torchOn = currentState.torchOn,
                 torchAvailable = currentState.torchAvailable,
@@ -234,6 +258,7 @@ fun ScanScreen(
             ScanBottomBar(
                 total = currentState.totalDetected,
                 newCount = currentState.newDetected,
+                zoomRatio = currentState.zoomRatio,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         } else {
@@ -341,33 +366,71 @@ private fun ScanControls(
 }
 
 @Composable
-private fun ScanBottomBar(total: Int, newCount: Int, modifier: Modifier = Modifier) {
+private fun ScanBottomBar(
+    total: Int,
+    newCount: Int,
+    zoomRatio: Float,
+    modifier: Modifier = Modifier,
+) {
+    // 倍率 ≈1.0x 时不显示（契约 §12.4：扫描页显示当前倍率）。
+    val showZoomChip = zoomRatio > 1.05f || zoomRatio < 0.95f
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = Color.Black.copy(alpha = 0.5f),
         shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.scan_session_total, total),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.scan_session_new, newCount),
+                    color = ScanNewAnchorGreen,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (showZoomChip) {
+                    ZoomChip(zoomRatio = zoomRatio)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
             Text(
-                text = stringResource(R.string.scan_session_total, total),
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.scan_session_new, newCount),
-                color = ScanNewAnchorGreen,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                text = stringResource(R.string.scan_gesture_hint),
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.labelSmall,
             )
         }
+    }
+}
+
+/** 当前相机倍率小徽标，例如 `2.0x`（契约 §12.4）。 */
+@Composable
+private fun ZoomChip(zoomRatio: Float) {
+    Surface(
+        color = Color.White.copy(alpha = 0.18f),
+        shape = RoundedCornerShape(percent = 50),
+    ) {
+        Text(
+            text = stringResource(R.string.scan_zoom_format, zoomRatio),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 

@@ -98,6 +98,27 @@ class ScanViewModel(context: Context, container: AppContainer) : ViewModel() {
             .onFailure { diagLog.log("ScanUI", "setTorch failed: ${it.javaClass.simpleName}") }
     }
 
+    /**
+     * 单击预览：以视图坐标（Box 内像素）对焦测光。
+     * 契约 §12.4：controller 用 `previewView.meteringPointFactory` 把视图坐标转为 metering 点。
+     */
+    fun tapToFocus(viewX: Float, viewY: Float) {
+        runCatching { controller.tapToFocus(viewX, viewY) }
+            .onFailure { diagLog.log("ScanUI", "tapToFocus failed: ${it.javaClass.simpleName}") }
+    }
+
+    /** 双指捏合：factor 为相对缩放增量（controller 内部按 min/max 倍率 clamp）。 */
+    fun zoomBy(factor: Float) {
+        runCatching { controller.zoomBy(factor) }
+            .onFailure { diagLog.log("ScanUI", "zoomBy failed: ${it.javaClass.simpleName}") }
+    }
+
+    /** 双击预览：1x ↔ min(2.0x, maxZoomRatio) 切换。 */
+    fun toggleZoom() {
+        runCatching { controller.toggleZoom() }
+            .onFailure { diagLog.log("ScanUI", "toggleZoom failed: ${it.javaClass.simpleName}") }
+    }
+
     /** 结束会话：成功后回调 summary（主线程），由页面负责返回 + snackbar。 */
     fun finish(onFinished: (ScanSessionSummary) -> Unit) {
         if (_finishing.value) return

@@ -39,7 +39,8 @@ import com.example.multiscan.ui.diag.DiagExporter
 import com.example.multiscan.ui.theme.StatusSuccess
 
 /**
- * 调试面板：实时 FPS / 单帧解码耗时 / track 数 / 丢帧数 / 相机分辨率 + 锚点开关 + 诊断导出。
+ * 调试面板：实时 FPS / 解码命中率 / 单帧解码耗时 / 已解码帧 / 已分析帧 / 最近解码 pass /
+ * track 数 / 丢帧数 / 相机分辨率 / 分析分辨率 + 锚点开关 + 诊断导出（契约 §12.5）。
  *
  * 统计来源是进程级 [ScanDebugBus]（扫描页关闭后仍保留最近一次会话数据；从未扫描则显示空态提示）。
  */
@@ -77,6 +78,12 @@ fun DebugScreen(container: AppContainer, onBack: () -> Unit) {
         stringResource(R.string.debug_camera_unknown)
     }
     val hasSessionData = frame != null || stats.analyzedFrames > 0L || stats.fps > 0f
+    // 契约 §12.5：decodeHitRate = decodedFrames / analyzedFrames；防御 NaN/越界，展示为百分比。
+    val hitRatePercent = if (stats.decodeHitRate.isFinite()) {
+        (stats.decodeHitRate * 100f).coerceIn(0f, 100f)
+    } else {
+        0f
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -97,6 +104,12 @@ fun DebugScreen(container: AppContainer, onBack: () -> Unit) {
         ) {
             DebugSection(title = stringResource(R.string.debug_section_camera)) {
                 DebugRow(label = stringResource(R.string.debug_resolution), value = resolutionText)
+                DebugRow(
+                    label = stringResource(R.string.debug_analysis_resolution),
+                    value = stats.analysisResolution.ifBlank {
+                        stringResource(R.string.debug_camera_unknown)
+                    },
+                )
             }
 
             DebugSection(title = stringResource(R.string.debug_section_session)) {
@@ -113,6 +126,10 @@ fun DebugScreen(container: AppContainer, onBack: () -> Unit) {
                     value = stringResource(R.string.debug_value_fps, stats.fps),
                 )
                 DebugRow(
+                    label = stringResource(R.string.debug_hit_rate),
+                    value = stringResource(R.string.debug_value_percent, hitRatePercent),
+                )
+                DebugRow(
                     label = stringResource(R.string.debug_decode_last),
                     value = stringResource(R.string.debug_value_ms, stats.lastDecodeMs),
                 )
@@ -121,16 +138,28 @@ fun DebugScreen(container: AppContainer, onBack: () -> Unit) {
                     value = stringResource(R.string.debug_value_ms, stats.avgDecodeMs),
                 )
                 DebugRow(
+                    label = stringResource(R.string.debug_decoded_frames),
+                    value = stringResource(R.string.debug_value_int, stats.decodedFrames),
+                )
+                DebugRow(
+                    label = stringResource(R.string.debug_analyzed),
+                    value = stringResource(R.string.debug_value_int, stats.analyzedFrames),
+                )
+                DebugRow(
+                    label = stringResource(R.string.debug_last_pass),
+                    value = if (stats.lastDecodePass > 0) {
+                        stringResource(R.string.debug_value_int, stats.lastDecodePass)
+                    } else {
+                        stringResource(R.string.debug_value_none)
+                    },
+                )
+                DebugRow(
                     label = stringResource(R.string.debug_tracks),
                     value = stringResource(R.string.debug_value_int, stats.activeTracks),
                 )
                 DebugRow(
                     label = stringResource(R.string.debug_dropped),
                     value = stringResource(R.string.debug_value_int, stats.droppedFrames),
-                )
-                DebugRow(
-                    label = stringResource(R.string.debug_analyzed),
-                    value = stringResource(R.string.debug_value_int, stats.analyzedFrames),
                 )
             }
 

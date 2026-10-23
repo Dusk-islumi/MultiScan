@@ -12,10 +12,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 帧间跟踪单测（JVM，假时钟注入）：
- *  - 连续 2 帧同一文本才确认；单帧不确认；
- *  - 文本变化立即重置证据；
- *  - 轻微抖动（IoU 匹配 / 中心距匹配）保持同一 track；
+ * 帧间跟踪单测（JVM，假时钟注入）—— v2 确认逻辑（CONTRACT §12）：
+ *  - 累计 **2 次同文本证据** 即确认（不要求连续帧；漏帧不清零，文本变化才重置）；
+ *  - 两次证据必须落在 500ms TTL 内：间隔超过 TTL 时旧 track 已过期，重新出现是新 track（需重新累计 2 次）；
+ *  - 单帧不确认；轻微抖动（IoU 匹配 / 中心距匹配）保持同一 track；
  *  - 500ms 无匹配后过期；同码重新出现是新 track，但去重索引给灰。
  */
 class TrackManagerTest {
@@ -56,7 +56,58 @@ class TrackManagerTest {
     }
 
     @Test
-    fun textChange_resetsConsecutiveEvidence() {
+    fun missedFrameBetweenEvidences_stillConfirms() {
+        // v2：漏一帧（该帧没解出）不清零证据，两次证据之间允许丢帧。
+        nowMs = 0L
+        val first = manager.update(listOf(detection("333", 100f, 100f, 300f, 200f)))
+        assertFalse(first.tracks.single().confirmed)
+
+        nowMs = 100L
+        val missed = manager.update(emptyList())
+        assertEquals("漏帧但未超过 500ms TTL，track 仍存活", 1, missed.tracks.size)
+        assertFalse(missed.tracks.single().confirmed)
+        assertTrue(missed.newlyConfirmed.isEmpty())
+
+        nowMs = 200L
+        val confirmed = manager.update(listOf(detection("333", 100f, 100f, 300f, 200f)))
+        assertTrue("漏帧后第二次证据仍应确认", confirmed.tracks.single().confirmed)
+        assertEquals(1, confirmed.newlyConfirmed.size)
+        assertEquals("333", confirmed.newlyConfirmed.single().text)
+    }
+
+    @Test
+    fun evidenceAtExactly500ms_stillConfirms() {
+        // TTL 边界：两次证据间隔恰好 500ms（严格 >500ms 才过期），仍应确认。
+        nowMs = 0L
+        manager.update(listOf(detection("555", 100f, 100f, 300f, 200f)))
+
+        nowMs = 500L
+        val confirmed = manager.update(listOf(detection("555", 100f, 100f, 300f, 200f)))
+        assertTrue(confirmed.tracks.single().confirmed)
+        assertEquals(1, confirmed.newlyConfirmed.size)
+    }
+
+    @Test
+    fun secondEvidenceAfterTtl_startsNewTrackAndDoesNotConfirm() {
+        // v2：第二次证据超过 500ms TTL 时旧 track 已过期，不能复用旧证据确认。
+        nowMs = 0L
+        val firstId = manager.update(listOf(detection("444", 100f, 100f, 300f, 200f))).tracks.single().id
+
+        nowMs = 600L // 距 firstEvidence 600ms > TTL → 旧 track 先过期移除
+        val reappear = manager.update(listOf(detection("444", 100f, 100f, 300f, 200f)))
+        assertEquals(1, reappear.tracks.size)
+        assertNotEquals("过期后重新出现必须是新 track id", firstId, reappear.tracks.single().id)
+        assertFalse("新 track 只有 1 次证据，不能确认", reappear.tracks.single().confirmed)
+        assertTrue(reappear.newlyConfirmed.isEmpty())
+
+        nowMs = 700L
+        val confirmed = manager.update(listOf(detection("444", 100f, 100f, 300f, 200f)))
+        assertTrue("新 track 第 2 次证据后确认", confirmed.tracks.single().confirmed)
+        assertEquals(1, confirmed.newlyConfirmed.size)
+    }
+
+    @Test
+    fun textChange_resetsEvidence() {
         nowMs = 0L
         manager.update(listOf(detection("AAA", 100f, 100f, 300f, 200f)))
 

@@ -55,8 +55,8 @@ internal data class ScanTrack(
     var quad: List<PointF>,
     var lineCount: Int,
     var symbologyIdentifier: String?,
-    /** 连续命中「与 [text] 相同文本」的帧数；文本变化即重置为 1。 */
-    var sameTextFrames: Int,
+    /** 累计命中「与 [text] 相同文本」的帧数（证据数；漏帧不清零，文本变化重置为 1）。 */
+    var sameTextEvidence: Int,
     var confirmed: Boolean,
     var lastSeenMs: Long,
     var bounds: TrackBounds,
@@ -92,15 +92,19 @@ internal data class TrackUpdate(
 )
 
 /**
- * 帧间跟踪（对应 `docs/CONTRACT.md` §5.1/§5.2）：
+ * 帧间跟踪（对应 `docs/CONTRACT.md` §5.1/§5.2，v2 §12 放宽确认逻辑）：
  *  - 当前帧 detection 与已有 track 匹配条件：**IoU > 0.3** 或 **中心距 < 0.5 × track 包围盒高**；
- *  - 未确认 track 连续 **2 帧** 解出**同一 text** 才变 confirmed；text 变化立即重置计数；
- *  - `> 500ms` 未再匹配的 track 过期移除；
+ *  - 未确认 track 累计 **2 次同文本证据** 即变 confirmed（**不要求连续帧**：漏帧不清零计数，
+ *    只要两次证据间隔不超过 500ms TTL；文本变化立即重置证据数）；
+ *  - `> 500ms` 未再匹配的 track 过期移除（确认计数随 track 一起丢弃，重新出现即新 track）；
  *  - confirmed track 保持稳定 text/lineCount/symbology（不随后续帧小抖动变化），
  *    但四边形随最近一次匹配更新，使叠加层跟随条码移动。
  *
+ * 为什么不再要求连续帧：真机对屏幕条码解码概率低（摩尔纹/滚动快门/手抖/对焦），
+ * 旧逻辑漏一帧就清零，导致很少能确认出框（见 `.coord/notes/recognition-analysis.md`）。
+ *
  * 线程模型：由 CameraX 单线程分析 executor 独占调用；内部加 `@Synchronized` 兜底。
- * 时钟可注入（`clock: () -> Long`，毫秒单调时钟），JVM 单测用假时钟驱动过期/连续帧逻辑。
+ * 时钟可注入（`clock: () -> Long`，毫秒单调时钟），JVM 单测用假时钟驱动过期/证据累计逻辑。
  */
 class TrackManager(
     private val clock: () -> Long = { System.nanoTime() / 1_000_000L },
@@ -133,7 +137,7 @@ class TrackManager(
                     quad = detection.cornersInBufferSpace,
                     lineCount = detection.lineCount,
                     symbologyIdentifier = detection.symbologyIdentifier,
-                    sameTextFrames = 1,
+                    sameTextEvidence = 1,
                     confirmed = false,
                     lastSeenMs = now,
                     bounds = bounds,
@@ -146,13 +150,8 @@ class TrackManager(
             }
         }
 
-        // 3) 本帧没匹配上的未确认 track：连续帧证据被打断，计数清零
-        //    （confirmed track 不因偶尔漏帧而撤销）。
-        for (track in tracks) {
-            if (track.id !in matchedThisFrame && !track.confirmed) {
-                track.sameTextFrames = 0
-            }
-        }
+        // 3) 本帧没匹配上的 track **不清零证据计数**（v2：容忍丢帧，累计 2 次证据即可确认）。
+        //    未被匹配的 track 会随 500ms TTL 过期；confirmed track 也不因偶尔漏帧而撤销。
 
         val snapshots = ArrayList<TrackSnapshot>(tracks.size)
         for (track in tracks) snapshots += track.toSnapshot()
@@ -175,18 +174,18 @@ class TrackManager(
         track.bounds = bounds
 
         if (detection.text != track.text) {
-            // 身份变了（同一位置换了一条码）：此前确认作废，重新累计连续帧证据。
+            // 身份变了（同一位置换了一条码）：此前证据作废，重新从 1 开始累计。
             track.text = detection.text
             track.lineCount = detection.lineCount
             track.symbologyIdentifier = detection.symbologyIdentifier
-            track.sameTextFrames = 1
+            track.sameTextEvidence = 1
             track.confirmed = false
             return
         }
 
         if (!track.confirmed) {
-            track.sameTextFrames += 1
-            if (track.sameTextFrames >= CONFIRM_FRAME_COUNT) {
+            track.sameTextEvidence += 1
+            if (track.sameTextEvidence >= CONFIRM_EVIDENCE_COUNT) {
                 track.confirmed = true
                 newlyConfirmed += track.toSnapshot()
             }
@@ -233,10 +232,10 @@ class TrackManager(
     }
 
     companion object {
-        /** 连续多少帧同一文本后确认（CONTRACT：连续 2 帧）。 */
-        const val CONFIRM_FRAME_COUNT: Int = 2
+        /** 累计多少次同文本证据后确认（CONTRACT §12：2 次证据，不要求连续帧）。 */
+        const val CONFIRM_EVIDENCE_COUNT: Int = 2
 
-        /** 未再匹配的存活时长；严格大于该值才过期移除。 */
+        /** 未再匹配的存活时长；严格大于该值才过期移除（两次证据必须落在该 TTL 内）。 */
         const val TRACK_TTL_MS: Long = 500L
 
         /** 匹配条件一：IoU 阈值（严格大于）。 */

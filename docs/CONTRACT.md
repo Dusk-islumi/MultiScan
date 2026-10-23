@@ -470,3 +470,34 @@ class SyncWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
   7. UI 额外增加进程级只读 `ScanDebugBus`（调试统计镜像，无 Context 泄漏）。
 - 最终 CI 命令：`cd app && ./gradlew assembleDebug testDebugUnitTest lintDebug`（本地 Windows 需先加载 JDK/SDK：build-env 的 `C:\android-toolchain\env.ps1`；CI 用 setup-java + setup-android）。
 
+## 12. 实机识别率优化增补（2026-10-23，v2；scanner + ui 必须实现）
+
+> 背景：用户在真机上扫屏幕 Code128 时识别率低。真实照片离线实验（`.coord/notes/recognition-analysis.md`）
+> 表明 1280×720 分析图里条码仅约 260px 宽，处于“轻微模糊即失败”临界；且现确认逻辑按连续帧计数，
+> 漏一帧就清零，导致很少能确认出框。以下为 v2 增补，**不改变绿/灰语义、UNIQUE 去重与既有公开字段**。
+
+1. **分辨率**：`Preview` 与 `ImageAnalysis` 统一目标 `1920×1080`（16:9），
+   `ResolutionStrategy(Size(1920,1080), FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)`；
+   保持 YUV_420_888 + KEEP_ONLY_LATEST；实际分析分辨率写入 debugStats。
+2. **多 pass 解码**（`BarcodeDecoder`）：
+   - pass1（规格参数）：`minLineCount=3, tryHarder=true, tryRotate=true, tryInvert=false, tryDownscale=false, LOCAL_AVERAGE`；
+   - pass2（仅当 pass1 无有效结果）：`minLineCount=2, tryHarder=true, tryRotate=true, tryInvert=true, tryDenoise=true, GLOBAL_HISTOGRAM`；
+   - reader 实例构造一次后**绝不修改 options**；两 pass 都在分析线程串行执行；`ImageProxy.use{}` 不变；
+   - `DecodeResult` 增加 `passUsed: Int`（1/2/0=无结果）、`decodeMs` 为总耗时。
+3. **确认逻辑容忍丢帧**（`TrackManager`）：同一 track 累计 **2 次同文本检测证据**即可确认；
+   **未匹配帧不清零计数**（仅文本变化、track 过期时清零/新建）；TTL 仍为 500ms。
+   测试需覆盖：漏帧后仍能确认、超过 TTL 不确认、文本变化重置。
+4. **相机控制新增**（`CameraController` + `ScanController` 公开 API，UI 调用）：
+   - `fun tapToFocus(viewX: Float, viewY: Float)`：用 `previewView.meteringPointFactory` +
+     `cameraControl.startFocusAndMetering(FocusMeteringAction)`（IsContinuousAutoFocus 默认）；
+   - `fun zoomBy(factor: Float)`：`setZoomRatio(current * factor)` 并 clamp 到 `[minZoomRatio, maxZoomRatio]`；
+   - `fun toggleZoom()`：1x ↔ `min(2.0f, maxZoomRatio)`；
+   - `ScanUiState` 增加 `zoomRatio: Float = 1f`；
+   - UI：`pointerInput` 单击→`tapToFocus`；双击→`toggleZoom`；捏合（`detectTransformGestures`）→`zoomBy`；
+     扫描页显示当前倍率（如 `2.0x`）与小字提示「点击对焦 · 双指缩放」。
+5. **调试面板新增**：`ScanDebugStats` 增加 `decodedFrames: Long`（≥1 个 detections 的帧数）、
+   `decodeHitRate: Float`（decodedFrames/analyzedFrames）、`analysisResolution: String`、`lastDecodePass: Int`；
+   调试页展示「解码命中率 / 已解码帧 / 最近解码 pass」。
+6. 约束：本轮**不改** data/**、Room/同步语义；不新增第三方依赖；不引入图像上采样/水印等额外处理。
+
+

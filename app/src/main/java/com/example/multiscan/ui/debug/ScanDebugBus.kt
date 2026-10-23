@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * 安全约束：**只保存值类型数据**，绝不保存 Context / Activity / PreviewView 等引用，避免泄漏；
  * 它不参与业务逻辑（无 Repository/网络/数据库调用），仅用于诊断展示与导出。
+ *
+ * v2（契约 §12.5）新增的 `decodedFrames` / `decodeHitRate` / `analysisResolution` / `lastDecodePass`
+ * 随整个 [ScanDebugStats] 值对象一起镜像（本类不逐字段处理，保持值类型、无引用）。
  */
 object ScanDebugBus {
 
