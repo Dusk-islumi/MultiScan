@@ -6,9 +6,9 @@ package com.example.multiscan.scan.model
  * 坐标约定（全模块统一）：
  *  - [PointF] / `ScanAnchor.quad` / `Detection.cornersInBufferSpace` 一律是
  *    **ImageProxy 原始 buffer 像素坐标（未旋转）**，尺寸 = `ImageProxy.width/height`。
- *  - zxing-cpp 返回的 `Result.position` 是「旋转后的 crop 空间」坐标（见
- *    `.coord/research/zxing-api.md` §9），由 `scan.decode.BarcodeDecoder` 负责逆旋转回
- *    buffer 空间；`scan.mapper.CoordinateMapper` 再统一做「正旋转 + FILL_CENTER 缩放」，
+ *  - zxing-cpp 返回的 `Result.position` 是「旋转后的 crop 空间」坐标（3.1.1 内部先按
+ *    cropRect 裁剪、再按 `imageInfo.rotationDegrees` 顺时针旋转），由 `scan.decode.BarcodeDecoder`
+ *    负责逆旋转回 buffer 空间；`scan.mapper.CoordinateMapper` 再统一做「正旋转 + FILL_CENTER 缩放」，
  *    两处只各自旋转一次，避免重复变换导致锚点错位。
  */
 

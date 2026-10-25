@@ -8,6 +8,7 @@ local.properties
 *.ap_
 *.dex
 captures/
+.kotlin/
 
 # Signing material (never commit)
 *.keystore
@@ -21,14 +22,12 @@ keystore.properties
 .externalNativeBuild/
 .cxx/
 
-# Team coordination + research scratch (not part of the deliverable)
-.coord/
-
-# Local tooling binaries that live in the workspace root (not part of the repo)
+# Local adb / platform-tools bundle that used to sit next to the project.
+# It has been moved to a private folder outside this repo; keep the rules so it
+# can never be committed again.
 /platform-tools/
 /*.exe
 /*.dll
-# adb/platform-tools distribution metadata that sits next to the .exe files
 /NOTICE.txt
 /package.xml
 /source.properties

@@ -101,7 +101,7 @@ internal data class TrackUpdate(
  *    但四边形随最近一次匹配更新，使叠加层跟随条码移动。
  *
  * 为什么不再要求连续帧：真机对屏幕条码解码概率低（摩尔纹/滚动快门/手抖/对焦），
- * 旧逻辑漏一帧就清零，导致很少能确认出框（见 `.coord/notes/recognition-analysis.md`）。
+ * 旧逻辑漏一帧就清零，导致很少能确认出框（v1 逻辑在真实照片仿真中确认概率约 4%）。
  *
  * 线程模型：由 CameraX 单线程分析 executor 独占调用；内部加 `@Synchronized` 兜底。
  * 时钟可注入（`clock: () -> Long`，毫秒单调时钟），JVM 单测用假时钟驱动过期/证据累计逻辑。

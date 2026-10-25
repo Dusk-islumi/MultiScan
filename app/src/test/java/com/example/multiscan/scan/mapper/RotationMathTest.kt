@@ -8,7 +8,7 @@ import org.junit.Test
  * 旋转数学单测：验证 CONTRACT §5.1 的逆旋转公式（decoder 用：rotated-crop → buffer）
  * 与正旋转公式（mapper 用：buffer → rotated）严格互逆，并硬编码 4 个角度的期望坐标。
  *
- * 背景：zxing-cpp `Result.position` 位于「旋转后 crop 空间」（见 `.coord/research/zxing-api.md` §9），
+ * 背景：zxing-cpp `Result.position` 位于「旋转后 crop 空间」（zxing-cpp 3.1.1 内部先 crop 再按 rotationDegrees 旋转），
  * 90/270 时坐标空间宽高互换，必须用这里的 [RotationMath.inverse] 转回 buffer 空间。
  */
 class RotationMathTest {

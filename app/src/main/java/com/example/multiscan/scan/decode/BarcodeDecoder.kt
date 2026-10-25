@@ -44,7 +44,7 @@ internal data class DecodeResult(
  *
  * 两个 [BarcodeReader] 实例都在本类构造时创建一次（构造函数会执行
  * `System.loadLibrary("zxingcpp_android")`），之后 **绝不修改 options**：
- * JNI 按字段名读取 options，运行中改 options 会造成撕裂读取（见 `.coord/research/zxing-api.md` §10）。
+ * JNI 按字段名读取 options，运行中改 options 会造成撕裂读取（zxing-cpp 3.1.1：JNI 按字段名读取 options）。
  * 两个 pass 都在同一个分析线程上串行执行；`ImageProxy.use {}` 不变。
  *
  * 其它关键约束（同 v1）：
