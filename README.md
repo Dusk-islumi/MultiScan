@@ -121,7 +121,7 @@ cd app
 |---|---|
 | [`releases/MultiScan-v3-debug.apk`](releases/MultiScan-v3-debug.apk) | 最新 Android 调试包（v3，debug 签名，可直接安装） |
 | [`releases/history/MultiScan-v2-debug.apk`](releases/history/MultiScan-v2-debug.apk) | 历史版本 v2 归档 |
-| [`releases/barcode-sync-server-20261025.zip`](releases/barcode-sync-server-20261025.zip) | 服务端源码归档（2026-10-25） |
+| [`releases/barcode-sync-server-20261029.zip`](releases/barcode-sync-server-20261029.zip) | 服务端源码归档（2026-10-29 脱敏重打包） |
 
 ## 文档
 

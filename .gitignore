@@ -29,6 +29,12 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 pip-build-env-*/
+pip-build-tracker-*/
+pip-ephem-wheel-cache-*/
+pip-install-*/
+pip-metadata-*/
+pip-modern-metadata-*/
+pip-unpack-*/
 server/build/
 server/dist/
 server/data/
