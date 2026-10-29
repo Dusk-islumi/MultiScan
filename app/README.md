@@ -15,7 +15,12 @@
 - 迭代记录：[CHANGELOG.md](CHANGELOG.md)
 - CI：`assembleDebug + lintDebug + testDebugUnitTest`（[.github/workflows/android.yml](../.github/workflows/android.yml)）
 
-> 这是一个**完整的参考实现/脚手架**，不是即插即用的 SDK：Code 128 码制、服务端契约、包名与中文文案是按当前需求固定的。
+> **码制范围**：当前只启用 **Code 128**；解码底座是 zxing-cpp（`io.github.zxing-cpp:android:3.1.1`，
+> 不是 Java 版 `com.google.zxing`）。zxing-cpp 支持 Code 39/93、EAN、UPC、QR、Data Matrix 等，
+> 但本项目在 `BarcodeDecoder` 两处 `Options(formats = ...)` 中限定为 `Format.CODE_128`。
+> 需要其它码制时，可按 [`../docs/REUSING.md`](../docs/REUSING.md) 第 1 节第 5 条自行修改并重新构建。
+>
+> 这是一个**完整的参考实现/脚手架**，不是即插即用的 SDK：服务端契约、包名与中文文案是按当前需求固定的。
 > 复用到其他项目时的改动点与工作量见 [`../docs/REUSING.md`](../docs/REUSING.md)。
 
 ## 目录结构
@@ -214,6 +219,7 @@ v2 改动（[`../docs/CONTRACT.md`](../docs/CONTRACT.md) §12）：
    `-Dfile.encoding=GBK`），说明见 [`../docs/WINDOWS_NOTES.md`](../docs/WINDOWS_NOTES.md)；纯 ASCII 路径与 Linux CI 无需配置。
 4. 服务端返回 401 时 App 停止自动重试并提示重新注册（避免无限重试），需到设置页重新注册。
 5. **本轮验收尾声模拟器（MuMu）ADB 通道掉线**：设备在线期间已完成安装/启动/相机/手电筒/调试统计/诊断导出/设置连通性/设备注册等人工验证；掉线后无法再安装最终 APK 或执行在线同步联合验证（代码与单测均已绿）。重启模拟器/换真机后按上文「使用流程」即可继续验证同步与识别。
+6. **仅启用 Code 128**：其它码制（Code 39 / EAN-13 / QR 等）需修改 `BarcodeDecoder` 的 `formats` 并重新构建，步骤见 [`../docs/REUSING.md`](../docs/REUSING.md) 第 1 节第 5 条。
 
 ## 安全说明
 

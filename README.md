@@ -16,13 +16,34 @@
 
 ## 功能
 
-- **多码实时识别**：同一画面可同时识别多个 Code 128，绿色锚点表示本次首次入库，灰色表示本会话已扫过。
+- **多码实时识别**：同一画面可同时识别多个 Code 128（当前仅启用该码制），绿色锚点表示本次首次入库，灰色表示本会话已扫过。
 - **本地优先**：扫描结果先写入 Room，断网也能继续扫；每批结束后可自动或手动同步。
 - **单向同步**：只上传本地记录，不会从服务器下载、覆盖或删除本地数据。
 - **幂等合并**：同一 `batch_id` 重传不会重复入库；同一条码被多台设备扫到时累计 `scan_count` 与设备数。
 - **网页控制台**：`/admin` 查看汇总、搜索、导出带 BOM 的 CSV（Excel 直接打开）。
 - **安全默认**：设备 token 只存 SHA-256；注册口令常量时间比较；按 IP 防爆破限速；CSV 公式注入防护。
 - **开箱部署**：附 systemd + Nginx + Let's Encrypt IP 证书配置，以及一键清空 / 回收站 / 数据库备份。
+
+## 支持的码制与扩展
+
+当前 App **只启用 Code 128**。解码底座是 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp)
+（Android 依赖 `io.github.zxing-cpp:android:3.1.1`，package `zxingcpp`；不是 Java 版 `com.google.zxing`）。
+zxing-cpp 本身支持 Code 39/93、EAN-8/13、UPC、ITF、Codabar、QR、Data Matrix、Aztec、PDF417 等，
+但本项目在 pass1 / pass2 两处 `Options(formats = ...)` 中把它限定为 `Format.CODE_128`。
+
+需要其它码制时，可自行修改源码并重新构建：
+
+1. 修改 `app/src/main/java/com/example/multiscan/scan/decode/BarcodeDecoder.kt` 中两处
+   `formats = setOf(Format.CODE_128)`，例如：
+   ```kotlin
+   formats = setOf(Format.CODE_128, Format.CODE_39, Format.EAN_13, Format.QR_CODE)
+   ```
+2. `Detection.format` 目前固定写为 `FORMAT_CODE128`；多码制时应改为 `result.format.name`
+   （枚举名形如 `CODE_128`，与现有 `Code128` 不同，按需映射），并同步调整 Room / 上传 DTO 的
+   `format` 默认值与 UI 文案；
+3. 执行 `cd app && ./gradlew assembleDebug` 重新打包。
+
+完整改动清单见 [docs/REUSING.md](docs/REUSING.md) 第 1 节第 5 条。
 
 ## 仓库结构
 

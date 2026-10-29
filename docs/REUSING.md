@@ -16,8 +16,20 @@
 3. **服务端地址默认值**：`SettingsSnapshot.DEFAULT_SERVER_URL`（当前 `http://10.0.2.2:8000`，模拟器用）。
 4. **服务端契约**：`data/remote/MultiScanApi.kt`、DTO、`SyncEngine` 状态机、`docs/API.md`。
    换后端时必须同步改 DTO 字段名与错误码处理（401/413/422/5xx 的语义在 `SyncEngine` 中硬编码）。
-5. **码制**：当前固定 `Format.CODE_128`（`BarcodeDecoder` 两处 + `FORMAT_CODE128` 常量 + Room/上传默认值 + 诊断 JSON）。
-   支持 Code 39/EAN/QR 等需修改 `Options.formats` 并调整 UI 文案/服务端 `format` 字段。
+5. **码制（当前仅 Code 128）**：底层解码库是 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp)
+   （`io.github.zxing-cpp:android:3.1.1`，package `zxingcpp`；不是 Java 版 `com.google.zxing`）。
+   zxing-cpp 支持 Code 39/93、EAN、UPC、ITF、Codabar、QR、Data Matrix、Aztec、PDF417 等，
+   但本项目把格式限定为 `Format.CODE_128`，涉及：
+   - `scan/decode/BarcodeDecoder.kt` 中 pass1 / pass2 两处 `formats = setOf(Format.CODE_128)`；
+   - `FORMAT_CODE128` 常量与 `Detection.format`（当前固定写 `"Code128"`）；
+   - Room `ScanItemEntity.format`、上传 `ScanItemPayload.format` 默认值、诊断 JSON 的 `formats`、UI 文案。
+
+   扩展到多码制时，把两处 `formats` 改成所需集合，并用 `result.format.name` 填充 `Detection.format`
+   （枚举名形如 `CODE_128`，与现有的 `"Code128"` 不同，按需映射）：
+   ```kotlin
+   formats = setOf(Format.CODE_128, Format.CODE_39, Format.EAN_13, Format.QR_CODE)
+   ```
+   只改解码格式、不改 `format` 字段时，数据库与上传记录仍会全部标成 Code128，统计会失真。
 
 ## 2. 只复用扫描能力（嵌入到已有 App）
 
