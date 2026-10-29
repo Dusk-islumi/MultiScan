@@ -70,7 +70,9 @@
 - 支持清空已同步记录
 
 ### 4. 设置页
-- 服务器地址（如 `http://192.168.1.10:8000`）
+- 服务器地址（生产填 `https://YOUR_SERVER_IP`；本机调试填 `http://10.0.2.2:18080`）
+  - 生产证书是 Let's Encrypt IP 证书，Android 7.1+ 默认信任；不要关闭系统证书校验
+  - 服务器地址只填 `https://YOUR_SERVER_IP`，不要带 `/v1` 或结尾斜杠
 - 注册口令（enroll secret）
 - 「测试连通性」→ `GET /health`，显示版本和服务器时间
 - 「注册本机」→ `POST /v1/devices/register`，保存 `device_id` + `token`，token 打码显示
@@ -198,9 +200,11 @@ outbox(id TEXT PRIMARY KEY, session_id TEXT, state TEXT, attempts INTEGER, next_
 ```
 
 - 201/200：标记 `synced`，删除或归档 outbox
-- 401：标记 `auth_error`，通知用户重新注册，**不要无限重试**
+- 401：标记 `auth_error`，通知用户重新注册，**不要无限重试**（token 可能已被吊销）
+- 409：`batch_id` 被其他设备占用，生成新的 `batch_id` 重发本批
 - 413：拆批重发
 - 422：标记 `failed`，保留记录供人工处理
+- 429：触发限流，退避重试
 - 5xx / 超时：保留，按退避重试
 
 ## 服务端 API

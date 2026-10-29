@@ -1,0 +1,51 @@
+[Unit]
+Description=Barcode Sync Server
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+[Service]
+Type=simple
+# ============================================================================
+# 部署前按实际环境修改这三处占位符（其余保持默认即可）：
+#   YOUR_USER      运行用户，例如 ubuntu / www-data
+#   /path/to/server 本仓库 server/ 目录的绝对路径
+#   /path/to/venv   Python 虚拟环境的绝对路径
+#
+# 一键替换示例：
+#   sed -e 's#YOUR_USER#'"$USER"'#g' \
+#       -e 's#/path/to/server#'"$PWD"'#g' \
+#       -e 's#/path/to/venv#'"$PWD"'/../.venv#g' \
+#       scan-server.service | sudo tee /etc/systemd/system/scan-server.service
+# ============================================================================
+User=YOUR_USER
+WorkingDirectory=/path/to/server
+EnvironmentFile=/path/to/server/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/path/to/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 18080
+Restart=always
+RestartSec=3
+UMask=0077
+
+# ---- 最小权限加固 ----
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/path/to/server/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

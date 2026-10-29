@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>条码汇总</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #f6f7f9; color: #1b1f24; }
+  header { display: flex; gap: 12px; align-items: center; padding: 14px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 2; }
+  h1 { font-size: 16px; margin: 0 auto 0 0; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  input { padding: 8px 10px; border: 1px solid #d0d5dd; border-radius: 8px; min-width: 220px; background: #fff; color: inherit; }
+  button { padding: 8px 14px; border: 1px solid #d0d5dd; border-radius: 8px; background: #fff; cursor: pointer; color: inherit; }
+  button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; }
+  .card b { display: block; font-size: 22px; }
+  .card span { color: #667085; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #f0f1f3; white-space: nowrap; }
+  th { background: #fafbfc; font-weight: 600; color: #475467; font-size: 12px; }
+  td.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .muted { color: #667085; }
+  .empty { padding: 40px; text-align: center; color: #667085; }
+  button.danger { color: #b42318; }
+  button.danger:hover { background: #fef3f2; border-color: #fda29b; }
+  button.danger-solid { background: #d92d20; border-color: #d92d20; color: #fff; }
+  button.danger-solid:disabled { opacity: .45; cursor: not-allowed; }
+  dialog { border: 1px solid #e5e7eb; border-radius: 12px; padding: 0;
+           max-width: 470px; width: 92vw; color: inherit; }
+  dialog::backdrop { background: rgba(15, 18, 22, .58); }
+  .modal { padding: 22px 22px 18px; display: grid; gap: 12px; }
+  .modal h2 { margin: 0; font-size: 16px; color: #b42318; }
+  .warn-box { background: #fef3f2; border: 1px solid #fecdc9; border-radius: 8px;
+              padding: 11px 13px; color: #b42318; font-size: 13px; line-height: 1.65; }
+  .modal label { font-size: 13px; color: #475467; }
+  .modal input { width: 100%; min-width: 0; }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
+  .trash-list { max-height: 46vh; overflow: auto; display: grid; gap: 8px; }
+  .trash-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+                border: 1px solid #e5e7eb; border-radius: 8px; }
+  .trash-item .meta { flex: 1; min-width: 0; }
+  .trash-item .meta b { font-size: 13px; }
+  .trash-item .meta span { display: block; color: #667085; font-size: 12px; }
+  .trash-empty { padding: 28px; text-align: center; color: #667085; }
+  .trash-dialog { padding: 0; }
+  .trash-dialog .modal { width: min(560px, 92vw); }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0f1216; color: #e6e8eb; }
+    header, .card, table { background: #171b21; border-color: #262c35; }
+    th { background: #1c2229; color: #9aa4b2; }
+    td { border-color: #222932; }
+    input, button { background: #171b21; border-color: #303845; }
+    button.primary { background: #3b82f6; border-color: #3b82f6; }
+    button.danger { color: #f97066; }
+    button.danger:hover { background: #2a1517; border-color: #7a2e2b; }
+    dialog { background: #171b21; border-color: #262c35; }
+    .modal h2 { color: #f97066; }
+    .warn-box { background: #2a1517; border-color: #5b2426; color: #f97066; }
+    .modal label { color: #9aa4b2; }
+    .trash-item { border-color: #262c35; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>条码汇总</h1>
+  <span id="clock" class="muted"></span>
+  <button id="logout" style="margin-left:12px">退出</button>
+</header>
+<div class="wrap">
+  <div class="row">
+    <input id="q" placeholder="搜索条码" style="min-width:220px">
+    <button class="primary" id="load">刷新</button>
+    <button id="search">搜索</button>
+    <button id="export">导出 CSV</button>
+    <button id="trash" style="margin-left:auto">回收站</button>
+    <button id="clear" class="danger">清空条码</button>
+  </div>
+
+  <div class="cards">
+    <div class="card"><b id="s-barcodes">-</b><span>合并后条码数</span></div>
+    <div class="card"><b id="s-events">-</b><span>扫描事件</span></div>
+    <div class="card"><b id="s-devices">-</b><span>设备数</span></div>
+    <div class="card"><b id="s-last">-</b><span>最后同步</span></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>条码</th><th>首次发现</th><th>最后扫描</th><th>扫描次数</th><th>设备数</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="row" style="margin-top:14px; justify-content:space-between">
+    <span id="total" class="muted"></span>
+    <span>
+      <button id="prev">上一页</button>
+      <button id="next">下一页</button>
+    </span>
+  </div>
+</div>
+
+<dialog id="clear-dialog">
+  <div class="modal">
+    <h2>&#9888; 清空所有条码记录</h2>
+    <div class="warn-box">
+      此操作<b>不可撤销</b>。<br>
+      将删除全部条码、扫描事件和上传批次记录。<br>
+      设备与授权码不受影响，删除前会自动备份数据库到服务器
+      <code>data/backups/</code>。
+    </div>
+    <p id="clear-count" class="muted" style="margin:0"></p>
+    <label for="clear-confirm">
+      请输入 <b id="clear-phrase"></b> 以确认：
+    </label>
+    <input id="clear-confirm" autocomplete="off" placeholder="按上面的文字原样输入">
+    <div class="actions">
+      <button id="clear-cancel">取消</button>
+      <button id="clear-ok" class="danger-solid" disabled>确认清空</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="trash-dialog" class="trash-dialog">
+  <div class="modal">
+    <h2>回收站</h2>
+    <p class="muted" style="margin:0;font-size:13px">
+      每次「清空条码」都会自动存一批到这里，可以一键整批恢复。
+    </p>
+    <div id="trash-list" class="trash-list"></div>
+    <div class="actions" style="justify-content:space-between">
+      <button id="trash-clear-all" class="danger">清空回收站</button>
+      <button id="trash-close">关闭</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let offset = 0, limit = 50, total = 0;
+
+// 认证走 HttpOnly Cookie，前端不接触任何 token
+const headers = () => ({});
+const fmt = (s) => s ? s.replace("T", " ").replace("+00:00", " UTC") : "-";
+
+async function api(path) {
+  const r = await fetch(path, { headers: headers(), credentials: "same-origin" });
+  if (r.status === 401) { location.replace("/admin/login"); throw new Error("未登录"); }
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+async function load() {
+  try {
+    const stats = await api("/v1/stats");
+    $("s-barcodes").textContent = stats.barcodes;
+    $("s-events").textContent = stats.events;
+    $("s-devices").textContent = stats.devices;
+    $("s-last").textContent = stats.last_received_at ? fmt(stats.last_received_at).slice(5, 16) : "-";
+
+    const q = encodeURIComponent($("q").value.trim());
+    const page = await api(`/v1/barcodes?limit=${limit}&offset=${offset}&q=${q}`);
+    total = page.total;
+    const tb = $("tbody");
+    tb.innerHTML = page.items.length ? "" : '<tr><td colspan="5" class="empty">暂无数据</td></tr>';
+    for (const it of page.items) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td class="code"></td><td class="muted"></td><td class="muted"></td><td></td><td></td>`;
+      const td = tr.querySelectorAll("td");
+      td[0].textContent = it.code;
+      td[1].textContent = fmt(it.first_seen_at);
+      td[2].textContent = fmt(it.last_seen_at);
+      td[3].textContent = it.scan_count;
+      td[4].textContent = it.device_count;
+      tb.appendChild(tr);
+    }
+    $("total").textContent = `共 ${total} 条，第 ${Math.floor(offset / limit) + 1} 页`;
+    $("prev").disabled = offset === 0;
+    $("next").disabled = offset + limit >= total;
+  } catch (e) {
+    const tb = $("tbody");
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.className = "empty";
+    td.textContent = e.message;
+    tr.appendChild(td);
+    tb.replaceChildren(tr);
+  }
+}
+
+async function exportCsv() {
+  const q = encodeURIComponent($("q").value.trim());
+  const r = await fetch(`/v1/barcodes/export.csv?q=${q}`, {
+    headers: headers(), credentials: "same-origin",
+  });
+  if (r.status === 401) { location.replace("/admin/login"); return; }
+  if (!r.ok) { alert("导出失败：HTTP " + r.status); return; }
+  const blob = await r.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "barcodes.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+$("load").onclick = () => { offset = 0; load(); };
+$("search").onclick = () => { offset = 0; load(); };
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter") { offset = 0; load(); } });
+$("prev").onclick = () => { offset = Math.max(0, offset - limit); load(); };
+$("next").onclick = () => { offset += limit; load(); };
+$("export").onclick = exportCsv;
+$("logout").onclick = async () => {
+  await fetch("/admin/logout", { method: "POST", credentials: "same-origin" });
+  location.replace("/admin/login");
+};
+
+// ---------------------------------------------------------------- 清空条码
+// 危险操作：必须手动输入确认短语才能点确认，且服务端会再校验一次
+const CLEAR_PHRASE = "清除全部条码";
+$("clear-phrase").textContent = CLEAR_PHRASE;
+
+function syncClearButton() {
+  $("clear-ok").disabled = $("clear-confirm").value.trim() !== CLEAR_PHRASE;
+}
+
+$("clear").onclick = () => {
+  $("clear-confirm").value = "";
+  syncClearButton();
+  $("clear-count").textContent = total
+    ? `当前共有 ${total} 条条码记录。`
+    : "当前没有条码记录。";
+  $("clear-dialog").showModal();
+};
+
+$("clear-confirm").addEventListener("input", syncClearButton);
+$("clear-cancel").onclick = () => $("clear-dialog").close();
+
+$("clear-ok").onclick = async () => {
+  $("clear-ok").disabled = true;
+  $("clear-ok").textContent = "正在清空…";
+  try {
+    const r = await fetch("/v1/barcodes/clear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ confirm: $("clear-confirm").value.trim() }),
+    });
+    if (r.status === 401) { location.replace("/admin/login"); return; }
+    if (r.status === 403) { alert("只有管理员可以执行清空操作。"); return; }
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      alert("清空失败：" + (body.detail || ("HTTP " + r.status)));
+      return;
+    }
+    const res = await r.json();
+    $("clear-dialog").close();
+    alert(
+      "已清空：\n" +
+      "· 条码 " + res.deleted_barcodes + " 条\n" +
+      "· 扫描事件 " + res.deleted_events + " 条\n" +
+      "· 上传批次 " + res.deleted_batches + " 条\n\n" +
+      (res.trash_id
+        ? "已存入回收站，可在「回收站」里一键恢复。\n\n"
+        : "注意：本次未能存入回收站（数据过大或为空）。\n\n") +
+      (res.backup_path
+        ? "备份已保存到：\n" + res.backup_path
+        : "注意：备份创建失败，请检查服务端日志。")
+    );
+    offset = 0;
+    load();
+  } catch (e) {
+    alert("清空失败：" + e.message);
+  } finally {
+    $("clear-ok").textContent = "确认清空";
+    syncClearButton();
+  }
+};
+
+// ---------------------------------------------------------------- 回收站
+async function refreshTrash() {
+  const list = $("trash-list");
+  try {
+    const r = await fetch("/v1/trash", { credentials: "same-origin" });
+    if (r.status === 401) { location.replace("/admin/login"); return; }
+    if (r.status === 403) { renderTrash([]); list.textContent = "只有管理员可以访问回收站。"; return; }
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const data = await r.json();
+    renderTrash(data.items || []);
+  } catch (e) {
+    list.textContent = "读取回收站失败：" + e.message;
+  }
+}
+
+function renderTrash(items) {
+  const list = $("trash-list");
+  list.replaceChildren();
+
+  if (!items.length) {
+    const d = document.createElement("div");
+    d.className = "trash-empty";
+    d.textContent = "回收站是空的";
+    list.appendChild(d);
+    $("trash-clear-all").disabled = true;
+    return;
+  }
+  $("trash-clear-all").disabled = false;
+
+  for (const it of items) {
+    const row = document.createElement("div");
+    row.className = "trash-item";
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const b = document.createElement("b");
+    b.textContent = fmt(it.created_at);
+    const span = document.createElement("span");
+    span.textContent =
+      "条码 " + it.barcode_count + " · 事件 " + it.event_count +
+      " · 批次 " + it.batch_count;
+    meta.append(b, span);
+
+    const btnRestore = document.createElement("button");
+    btnRestore.className = "primary";
+    btnRestore.textContent = "恢复";
+    btnRestore.onclick = () => restoreTrashItem(it, btnRestore);
+
+    const btnDel = document.createElement("button");
+    btnDel.className = "danger";
+    btnDel.textContent = "永久删除";
+    btnDel.onclick = () => deleteTrashItem(it);
+
+    row.append(meta, btnRestore, btnDel);
+    list.appendChild(row);
+  }
+}
+
+async function restoreTrashItem(it, btn) {
+  if (!confirm(
+    "恢复这一批数据？\n\n" +
+    "条码 " + it.barcode_count + " · 事件 " + it.event_count +
+    " · 批次 " + it.batch_count + "\n\n" +
+    "如果当前已有相同的条码，会合并计数而不是覆盖。"
+  )) return;
+
+  btn.disabled = true;
+  btn.textContent = "恢复中…";
+  try {
+    const r = await fetch("/v1/trash/" + encodeURIComponent(it.id) + "/restore", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    if (r.status === 401) { location.replace("/admin/login"); return; }
+    if (r.status === 403) { alert("只有管理员可以恢复数据。"); return; }
+    if (r.status === 404) { alert("这批数据已经恢复过或已被删除。"); await refreshTrash(); return; }
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      alert("恢复失败：" + (body.detail || ("HTTP " + r.status)));
+      return;
+    }
+    const res = await r.json();
+    alert(
+      "已恢复：\n" +
+      "· 条码 " + res.restored_barcodes + " 条\n" +
+      "· 扫描事件 " + res.restored_events + " 条\n" +
+      "· 上传批次 " + res.restored_batches + " 条"
+    );
+    offset = 0;
+    await Promise.all([load(), refreshTrash()]);
+  } catch (e) {
+    alert("恢复失败：" + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "恢复";
+  }
+}
+
+async function deleteTrashItem(it) {
+  if (!confirm("永久删除这批快照？此操作不可撤销。")) return;
+  try {
+    const r = await fetch("/v1/trash/" + encodeURIComponent(it.id), {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    if (r.status === 401) { location.replace("/admin/login"); return; }
+    if (!r.ok) { alert("删除失败：HTTP " + r.status); return; }
+    await refreshTrash();
+  } catch (e) {
+    alert("删除失败：" + e.message);
+  }
+}
+
+$("trash").onclick = () => {
+  $("trash-dialog").showModal();
+  refreshTrash();
+};
+$("trash-close").onclick = () => $("trash-dialog").close();
+$("trash-clear-all").onclick = async () => {
+  if (!confirm("清空回收站？所有快照都会被永久删除，无法再恢复。")) return;
+  try {
+    const r = await fetch("/v1/trash", { method: "DELETE", credentials: "same-origin" });
+    if (r.status === 401) { location.replace("/admin/login"); return; }
+    if (!r.ok) { alert("清空失败：HTTP " + r.status); return; }
+    await refreshTrash();
+  } catch (e) {
+    alert("清空失败：" + e.message);
+  }
+};
+
+setInterval(() => { $("clock").textContent = new Date().toLocaleString(); }, 1000);
+load();
+</script>
+</body>
+</html>

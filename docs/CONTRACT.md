@@ -19,31 +19,36 @@
 ## 1. 仓库布局与写作用域（WRITE SCOPES，必须严格遵守）
 
 ```
-OCR/
-├── docs/API.md                     # 只读（服务端契约）
-├── .github/workflows/android.yml   ├── .gitignore / README.md          ├── tools/dev-server/server.py      # 本地联调用 mock server（绝不替代服务端）
-└── app/                            # 独立 Gradle 工程（root project = application module）
-    ├── settings.gradle.kts         
-    ├── build.gradle.kts            
-    ├── gradle.properties           
-    ├── gradlew(.bat) / gradle/wrapper/**   
-    ├── local.properties            # 本机生成，不提交
-    └── src/
-        ├── main/AndroidManifest.xml                               ├── main/java/com/example/multiscan/
-        │   ├── MultiScanApplication.kt                            │   ├── AppContainer.kt                            # 手写单例容器（集成期组装）
-        │   ├── MainActivity.kt                            # ui（Compose 页面与导航）
-        │   ├── core/**                                            │   │   ├── contracts/ScanSessionStore.kt
-        │   │   ├── diag/DiagLog.kt
-        │   │   ├── time/Utc.kt
-        │   │   └── code128/Code128CValidator.kt
-        │   ├── data/**                                    # data-sync
-        │   ├── scan/**                                    # scanner
-        │   └── ui/**                                      # ui
-        ├── main/res/**                                    # ui（字符串/主题/图标/FileProvider 路径）
-        └── test/java/com/example/multiscan/
-            ├── core/**                                    # 核心工具的单测（Code128C 等）
-            ├── scan/**                                    # scanner（坐标映射/跟踪/去重）
-            └── data/**                                    # data-sync（退避/同步状态机/去重）
+MultiScan/
+├── app/                            # 独立 Gradle 工程（root project = application module）
+│   ├── settings.gradle.kts
+│   ├── build.gradle.kts
+│   ├── gradle.properties
+│   ├── gradlew(.bat) / gradle/wrapper/**
+│   ├── local.properties            # 本机生成，不提交
+│   └── src/
+│       ├── main/AndroidManifest.xml
+│       ├── main/java/com/example/multiscan/
+│       │   ├── MultiScanApplication.kt
+│       │   ├── AppContainer.kt     # 手写单例容器（集成期组装）
+│       │   ├── MainActivity.kt     # ui（Compose 页面与导航）
+│       │   ├── core/
+│       │   │   ├── contracts/ScanSessionStore.kt
+│       │   │   ├── diag/DiagLog.kt
+│       │   │   ├── time/Utc.kt
+│       │   │   └── code128/Code128CValidator.kt
+│       │   ├── data/               # data-sync
+│       │   ├── scan/               # scanner
+│       │   └── ui/                 # ui
+│       ├── main/res/               # ui（字符串/主题/图标/FileProvider 路径）
+│       └── test/java/com/example/multiscan/
+│           ├── core/               # 核心工具的单测（Code128C 等）
+│           ├── scan/               # scanner（坐标映射/跟踪/去重）
+│           └── data/               # data-sync（退避/同步状态机/去重）
+├── server/                         # FastAPI 同步服务（本契约不涉及）
+├── docs/                           # 契约与说明（API.md 只读）
+├── tools/dev-server/server.py      # 本地联调用 mock server（绝不替代服务端）
+└── .github/workflows/android.yml   # CI：assembleDebug + lintDebug + testDebugUnitTest
 ```
 
 **改动纪律**：`app/build.gradle.kts`、`AndroidManifest.xml`、`AppContainer.kt` 是高风险共享文件，改动前先确认影响面并跑完整 CI。

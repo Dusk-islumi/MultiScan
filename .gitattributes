@@ -11,6 +11,12 @@
 *.yml   text
 *.yaml  text
 *.toml  text
+*.html  text
+*.css   text
+*.js    text
+*.conf  text
+*.service text
+*.timer text
 
 # Gradle wrapper script must stay LF *and* executable (git index mode 100755),
 # otherwise GitHub Actions `./gradlew` fails with "Permission denied".
@@ -22,8 +28,11 @@ gradlew   text eol=lf
 *.jar     binary
 *.apk     binary
 *.aab     binary
+*.zip     binary
 *.png     binary
 *.jpg     binary
 *.jpeg    binary
 *.webp    binary
 *.so      binary
+*.db      binary
+*.sqlite  binary

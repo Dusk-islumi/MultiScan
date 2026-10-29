@@ -1,7 +1,7 @@
 # Windows 构建说明（中文 / 非 ASCII 路径）
 
 本项目在 Linux CI（`.github/workflows/android.yml`）上使用默认配置即可构建。
-如果你的 Windows 工作区路径包含**中文或其他非 ASCII 字符**（例如 `C:\Users\me\桌面\OCR`），
+如果你的 Windows 工作区路径包含**中文或其他非 ASCII 字符**（例如 `C:\Users\me\桌面\条码识别项目\MultiScan\app`），
 JDK 17 + Gradle 8.14.x 组合有两个已知问题，需要在本机做一次性覆盖：
 
 ## 1. Gradle 单元测试全部 `ClassNotFoundException`
@@ -35,5 +35,5 @@ android.overridePathCheck=true
 ## 其他
 
 - 放到纯 ASCII 路径（例如 `C:\work\multiscan`）下构建则不需要以上任何覆盖。
-- 仓库根目录的 `gradlew(*.bat)` 由 `.gitattributes` 保持 LF/可执行位；Windows 下直接用
+- `app/` 下的 `gradlew(*.bat)` 由 `.gitattributes` 保持 LF/可执行位；Windows 下直接用
   `.\gradlew.bat` 即可。

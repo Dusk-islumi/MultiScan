@@ -1,0 +1,14 @@
+services:
+  scan-server:
+    build: .
+    restart: unless-stopped
+    ports:
+      # 只映射到回环，公网入口交给宿主机 Nginx
+      - "127.0.0.1:18080:18080"
+    environment:
+      # 必须显式提供，否则容器拒绝启动（见 app/config.py 的强制校验）
+      ENROLL_SECRET: "${ENROLL_SECRET:?ENROLL_SECRET 未设置，请先在 .env 中配置强随机口令}"
+      DB_PATH: "/data/scan.db"
+      CREDENTIALS_PATH: "/data/credentials.txt"
+    volumes:
+      - ./data:/data

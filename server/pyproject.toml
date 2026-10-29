@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "barcode-sync-server"
+version = "1.0.0"
+description = "多设备条码扫描同步服务：设备注册、幂等批量上传、去重合并、CSV 导出"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["barcode", "fastapi", "sqlite", "scanner", "sync"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+]
+
+# 版本上限用 ~= 锁住次版本，避免上游 breaking change 直接搞挂服务
+dependencies = [
+    "fastapi>=0.115,<2",
+    "uvicorn[standard]>=0.30,<1",
+    "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+# 可选：装好后直接 barcode-sync 启动
+barcode-sync = "app.__main__:main"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.setuptools.package-data]
+# 页面模板必须随包分发，否则装上后读不到 admin.html
+app = ["*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # starlette 的 TestClient 弃用提示，与业务无关
+    "ignore::DeprecationWarning",
+]
